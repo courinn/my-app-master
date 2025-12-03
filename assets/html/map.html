@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Firebase a Leaflet Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" />
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+
+<body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+
+
+    <!-- Add the Firebase products that you want to use -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+
+    <script>
+    // Firebase config
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8KEFjO-xp19DES3qfmPT_YyqCTJ8uqSk",
+        authDomain: "reactnative-e52f1.firebaseapp.com",
+        databaseURL: "https://reactnative-e52f1-default-rtdb.firebaseio.com",
+        projectId: "reactnative-e52f1",
+        storageBucket: "reactnative-e52f1.firebasestorage.app",
+        messagingSenderId: "515870406401",
+        appId: "1:515870406401:web:98c6a10b56aa807abb4d00"
+    };
+
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+
+        // Initialize the map
+        const map = L.map('map').setView([-7.7956, 110.3695], 13);
+
+
+        // Add a tile layer (the map background)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+
+        // Get a reference to the database service
+        const pointsRef = database.ref("/points");
+
+        // Delete point
+        function deletePoint(key) {
+            // confirm
+            if (confirm("Yakin akan menghapus point ini?")) {
+                pointsRef.child(key).remove();
+                // reload page
+                window.location.reload();
+            }
+        }
+
+
+        // Attach an asynchronous callback to read the data at our posts reference
+        pointsRef.on('value', (e) => {
+            const data = e.val();
+            console.log(data);
+            if (data) {
+                Object.keys(data).forEach((key) => {
+                    const point = data[key];
+                    if (point.coordinates) {
+                        //change coordinates to float
+                        point.coordinates = point.coordinates.split(",").map(parseFloat);
+                        console.log(point.coordinates);
+                        const marker = L.marker(point.coordinates).addTo(map);
+                        const popup = `${point.name}<br>${point.coordinates}<br><button onclick="deletePoint('${key}')"><i class="fa-solid fa-trash"></i> Delete</button>`;
+
+
+                        if (point.name) {
+                            marker.bindPopup(popup);
+                        }
+                    }
+                });
+            }
+        }, (errorObject) => {
+            console.log("The read failed: " + errorObject.name);
+        });
+    </script>
+</body>
+
+</html>
