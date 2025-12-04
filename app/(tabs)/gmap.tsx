@@ -1,4 +1,5 @@
 import { FontAwesome } from '@expo/vector-icons';
+import * as Location from 'expo-location'; // Import yang diperlukan
 import { router } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { useEffect, useRef, useState } from 'react';
@@ -14,17 +15,19 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput, // Import TextInput
     TouchableOpacity,
     TouchableWithoutFeedback,
     View,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Circle } from 'react-native-maps'; // Import Circle
 import { db } from "../firebase";
 import { useAuth } from '../providers/AuthProvider';
 
 type BaseMarker = { id: string; name: string; latitude: number; longitude: number };
 type HotelInfo = { bintang?: number; alamat?: string; deskripsi?: string; website?: string | null; sections?: Array<{ title: string; content: string; source?: string | null }> };
-type MarkerItem = BaseMarker & HotelInfo;
+// Perbarui MarkerItem untuk menyertakan jarak
+type MarkerItem = BaseMarker & HotelInfo & { distance?: number };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -34,6 +37,9 @@ const COLOR_SECONDARY = '#6c757d'; // Abu-abu gelap untuk teks sekunder
 const COLOR_BACKGROUND = '#f8f9fa'; // Latar belakang aplikasi yang sedikit abu-abu
 const COLOR_CARD_BACKGROUND = '#ffffff'; // Latar belakang kartu putih
 const COLOR_BORDER = '#dee2e6'; // Warna batas/garis pemisah
+
+// Konstanta untuk fitur Lokasi
+const INITIAL_SEARCH_RADIUS_KM = 5; // Radius pencarian default (dalam KM)
 
 function getStarColor(stars?: number) {
     const starLevel = Math.floor(stars || 0);
@@ -49,39 +55,110 @@ function getStarColor(stars?: number) {
     }
 }
 
+// ====================================================================
+// FUNGSI UTILITY JARAK HAVERSINE (Tidak memerlukan library tambahan)
+// ====================================================================
+
+/**
+ * Menghitung jarak antara dua koordinat GPS menggunakan formula Haversine.
+ * @param lat1 Latitude titik 1
+ * @param lon1 Longitude titik 1
+ * @param lat2 Latitude titik 2
+ * @param lon2 Longitude titik 2
+ * @returns Jarak dalam Kilometer (km)
+ */
+const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radius bumi dalam km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Jarak dalam km
+};
+
 export default function MapScreen() {
     const [markers, setMarkers] = useState<MarkerItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedMarker, setSelectedMarker] = useState<MarkerItem | null>(null);
-    const [activeTab, setActiveTab] = useState<'all' | '3' | '4' | '5'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | '3' | '4' | '5' | 'near'>('all'); 
     const [showBottomSheet, setShowBottomSheet] = useState(false);
     const { role } = useAuth();
 
+    // State baru untuk lokasi pengguna dan radius
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
+    const [searchRadius, setSearchRadius] = useState<number>(INITIAL_SEARCH_RADIUS_KM);
+    const [locationLoading, setLocationLoading] = useState(false);
+    
+    // STATE BARU UNTUK PENCARIAN
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
+    const mapRef = useRef<MapView>(null);
     const bottomSheetY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const panResponder = useRef<any>(null);
 
-    // Configure sheet open/closed positions so the sheet shows more content
-    const SHEET_OPEN_Y = SCREEN_HEIGHT * 0.0; // sheet pulled up -> visible ~75% of screen
-    const SHEET_CLOSED_Y = SCREEN_HEIGHT; // fully hidden
+    const SHEET_OPEN_Y = SCREEN_HEIGHT * 0.0; 
+    const SHEET_CLOSED_Y = SCREEN_HEIGHT; 
 
+    // FUNGSI LOKASI PENGGUNA
+    const getUserLocation = async () => {
+        setLocationLoading(true);
+        try {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Izin Ditolak', 'Izin akses lokasi diperlukan untuk fitur hotel terdekat.');
+                return;
+            }
+
+            let loc = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Medium,
+            });
+            
+            const newLocation = {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+            };
+            setUserLocation(newLocation);
+            
+            // Zoom ke lokasi pengguna
+            if (mapRef.current) {
+                mapRef.current.animateToRegion({
+                    latitude: newLocation.latitude,
+                    longitude: newLocation.longitude,
+                    latitudeDelta: 0.05,
+                    longitudeDelta: 0.05,
+                });
+            }
+
+            // Aktifkan tab terdekat secara otomatis
+            setActiveTab('near');
+
+        } catch (e) {
+            console.error('Error getting location:', e);
+            Alert.alert('Error', 'Gagal mendapatkan lokasi saat ini.');
+        } finally {
+            setLocationLoading(false);
+        }
+    };
+    
+    // useEffect untuk PanResponder (tetap sama)
     useEffect(() => {
         panResponder.current = PanResponder.create({
             onStartShouldSetPanResponder: () => false,
             onMoveShouldSetPanResponder: (e, { dy }) => Math.abs(dy) > 8,
             onPanResponderMove: (e, { dy }) => {
-                // allow user to drag sheet down from open position
                 if (dy > 0) bottomSheetY.setValue(SHEET_OPEN_Y + dy);
-                // allow small upward drag (optional) but keep bounds
                 else bottomSheetY.setValue(Math.max(0, SHEET_OPEN_Y + dy));
             },
             onPanResponderRelease: (e, { dy, vy }) => {
-                // if user drags down sufficiently or with a downward velocity, close
                 if (dy > 80 || vy > 0.8) closeBottomSheet();
                 else openBottomSheet();
             },
         });
     }, []);
 
+    // useEffect untuk Fetch Data (dengan perhitungan jarak)
     useEffect(() => {
         const pointsRef = ref(db, 'points/');
         const unsubscribe = onValue(pointsRef, (snapshot) => {
@@ -93,12 +170,19 @@ export default function MapScreen() {
                         if (typeof point.coordinates !== 'string' || point.coordinates.trim() === '') return null;
                         const [latitude, longitude] = point.coordinates.split(',').map(Number);
                         if (isNaN(latitude) || isNaN(longitude)) return null;
-                        // Use all data from Firebase (already includes both migrated hoteldata + new entries)
-                        // Convert reviews into section-like entries so they appear in the detail sections
+
                         const reviewsFromDb: Array<any> = point.reviews && typeof point.reviews === 'object' ? Object.keys(point.reviews).map(k => ({ id: k, ...point.reviews[k] })) : [];
                         const reviewSections = reviewsFromDb.map((r) => ({ title: `Ulasan: ${r.userName || 'Anon'} • ${r.rating || ''}⭐`, content: r.comment || '', source: r.createdAt || null }));
                         const mergedSections = Array.isArray(point.sections) ? [...point.sections, ...reviewSections] : reviewSections.length > 0 ? reviewSections : (point.sections || null);
 
+                        let distance = undefined;
+                        if (userLocation) {
+                            distance = haversineDistance(
+                                userLocation.latitude, userLocation.longitude,
+                                latitude, longitude
+                            );
+                        }
+                        
                         return {
                             id: key,
                             name: point.name,
@@ -109,6 +193,7 @@ export default function MapScreen() {
                             deskripsi: point.deskripsi || '',
                             website: point.website || null,
                             sections: mergedSections,
+                            distance: distance, // Simpan jarak
                         } as MarkerItem;
                     })
                     .filter((m): m is MarkerItem => m !== null);
@@ -123,7 +208,7 @@ export default function MapScreen() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [userLocation]); // Rerun ketika userLocation berubah
 
     const groupedByStars = {
         3: markers.filter((m) => Math.floor(m.bintang || 0) === 3),
@@ -133,7 +218,7 @@ export default function MapScreen() {
 
     const openBottomSheet = () => {
         setShowBottomSheet(true);
-        Animated.spring(bottomSheetY, { toValue: SHEET_OPEN_Y, useNativeDriver: false, tension: 30, friction: 8 }).start(); // Gunakan spring untuk animasi yang lebih halus
+        Animated.spring(bottomSheetY, { toValue: SHEET_OPEN_Y, useNativeDriver: false, tension: 30, friction: 8 }).start();
     };
     const closeBottomSheet = () => {
         Animated.timing(bottomSheetY, { toValue: SHEET_CLOSED_Y, duration: 300, useNativeDriver: false }).start(() => {
@@ -142,21 +227,44 @@ export default function MapScreen() {
         });
     };
 
+    // ====================================================================
+    // FUNGSI BARU: Langsung menuju lokasi hotel di peta
+    // ====================================================================
+    const goToHotelLocation = (marker: MarkerItem) => {
+        if (mapRef.current) {
+            mapRef.current.animateToRegion({
+                latitude: marker.latitude,
+                longitude: marker.longitude,
+                latitudeDelta: 0.02, // Zoom in sedikit
+                longitudeDelta: 0.02,
+            }, 500); // Durasi animasi 500ms
+        }
+    };
+
     const handleMarkerPress = (marker: MarkerItem) => {
+        // Panggil fungsi untuk zoom ke lokasi hotel
+        goToHotelLocation(marker); 
+        
+        // Atur marker terpilih dan buka bottom sheet
         setSelectedMarker(marker);
         openBottomSheet();
     };
+    // ====================================================================
 
     const openInMaps = async () => {
         if (!selectedMarker) return;
         const { latitude, longitude } = selectedMarker;
-        const mapsUrl = Platform.OS === 'ios' ? `maps://?daddr=${latitude},${longitude}` : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+        const mapsUrl = Platform.select({
+            ios: `maps://?daddr=${latitude},${longitude}`,
+            android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${selectedMarker.name})`
+        }) || `http://maps.google.com/maps?q=${latitude},${longitude}`;
+        
         try {
             const can = await Linking.canOpenURL(mapsUrl);
             if (can) await Linking.openURL(mapsUrl);
-            else await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
+            else Alert.alert('Error', 'Tidak dapat membuka aplikasi peta.');
         } catch (err) {
-            Alert.alert('Error', 'Tidak dapat membuka aplikasi peta.');
+            Alert.alert('Error', 'Terjadi kesalahan saat membuka peta.');
         }
     };
 
@@ -178,9 +286,71 @@ export default function MapScreen() {
         return '⭐'.repeat(Math.max(0, full));
     };
 
+    // Fungsi untuk menyaring hotel terdekat (berdasarkan jarak dan radius)
+    const getNearestHotels = (data: MarkerItem[]) => {
+        if (!userLocation) return [];
+        return data
+            .filter(m => m.distance !== undefined && m.distance <= searchRadius)
+            .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    };
+
+    // LOGIKA FILTER UTAMA (MEMPERTIMBANGKAN SEARCH QUERY)
+    // 1. Filter awal berdasarkan search query (mempengaruhi semua tab)
+    const filteredBySearch = markers.filter(marker => 
+        searchQuery.trim() === '' || 
+        marker.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
+    );
+
+    // 2. Filter berdasarkan activeTab
+    const currentFilteredHotels = (() => {
+        if (activeTab === 'near') {
+            return getNearestHotels(filteredBySearch);
+        }
+        
+        const starFilter = (m: MarkerItem) => 
+            activeTab === 'all' ? true : Math.floor(m.bintang || 0) === parseInt(activeTab, 10);
+        
+        return filteredBySearch.filter(starFilter);
+    })();
+    // ====================================================================
+
+
+    const renderHotelCard = (item: MarkerItem) => (
+        // Sekarang, menekan kartu akan memanggil handleMarkerPress, yang akan zoom dan membuka detail
+        <TouchableOpacity style={styles.hotelCard} activeOpacity={0.8} onPress={() => handleMarkerPress(item)}>
+            <View style={styles.hotelCardIcon}>
+                <FontAwesome name="bed" size={20} color={getStarColor(item.bintang)} />
+            </View>
+            <View style={styles.hotelCardContent}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                    <Text style={styles.hotelName}>{item.name}</Text>
+                </View>
+                <Text style={styles.hotelAddress} numberOfLines={1}>
+                    <FontAwesome name="map-marker" size={12} color={COLOR_SECONDARY} /> {item.alamat}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: getStarColor(item.bintang), fontSize: 13, fontWeight: '600' }}>
+                        {renderStarRating(item.bintang)}
+                        <Text style={{ color: COLOR_SECONDARY, fontWeight: '400', fontSize: 11 }}> ({Math.floor(item.bintang || 0)} bintang)</Text>
+                    </Text>
+                    {activeTab === 'near' && item.distance !== undefined && (
+                        <Text style={styles.distanceText}>
+                            {item.distance < 1 ? `${(item.distance * 1000).toFixed(0)} m` : `${item.distance.toFixed(1)} km`}
+                        </Text>
+                    )}
+                </View>
+            </View>
+            
+            {/* Tombol 'Go to Location' (Menggantikan chevron) */}
+            {/* Chevron digunakan sebagai ikon Go-To Location, yang dipanggil oleh onPress utama */}
+            <FontAwesome name="arrow-circle-right" size={24} color={COLOR_PRIMARY} /> 
+
+        </TouchableOpacity>
+    );
+
     const renderStarSection = (stars: number, list: MarkerItem[]) => (
         <View style={styles.starSection}>
-            <View style={styles.starHeader}>
+            <View style={[styles.starHeader, { borderLeftColor: getStarColor(stars) }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                     <Text style={styles.starHeaderText}>
                         <Text style={{ color: getStarColor(stars) }}>{renderStarRating(stars)}</Text> Hotel Bintang {stars}
@@ -194,26 +364,7 @@ export default function MapScreen() {
                 <FlatList
                     data={list}
                     scrollEnabled={false}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.hotelCard} activeOpacity={0.8} onPress={() => handleMarkerPress(item)}>
-                            <View style={styles.hotelCardIcon}>
-                                <FontAwesome name="bed" size={20} color={getStarColor(item.bintang)} />
-                            </View>
-                            <View style={styles.hotelCardContent}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                                    <Text style={styles.hotelName}>{item.name}</Text>
-                                </View>
-                                <Text style={styles.hotelAddress} numberOfLines={1}>
-                                    <FontAwesome name="map-marker" size={12} color={COLOR_SECONDARY} /> {item.alamat}
-                                </Text>
-                                <Text style={{ color: getStarColor(item.bintang), fontSize: 13, fontWeight: '600' }}>
-                                    {renderStarRating(item.bintang)}
-                                    <Text style={{ color: COLOR_SECONDARY, fontWeight: '400', fontSize: 11 }}> ({Math.floor(item.bintang || 0)} bintang)</Text>
-                                </Text>
-                            </View>
-                            <FontAwesome name="chevron-right" size={16} color="#ccc" />
-                        </TouchableOpacity>
-                    )}
+                    renderItem={({ item }) => renderHotelCard(item)}
                     keyExtractor={(item) => item.id}
                 />
             ) : (
@@ -242,6 +393,11 @@ export default function MapScreen() {
                             </Text>
                         </View>
                         <Text style={styles.hotelNameBig}>{selectedMarker.name}</Text>
+                        {selectedMarker.distance !== undefined && (
+                            <Text style={{ color: COLOR_SECONDARY, fontSize: 16, marginTop: 4 }}>
+                                Jarak dari Anda: <Text style={{ fontWeight: 'bold', color: COLOR_PRIMARY }}>{selectedMarker.distance < 1 ? `${(selectedMarker.distance * 1000).toFixed(0)} m` : `${selectedMarker.distance.toFixed(1)} km`}</Text>
+                            </Text>
+                        )}
                     </View>
 
                     {/* Action Buttons */}
@@ -347,22 +503,77 @@ export default function MapScreen() {
         );
     }
 
-    const filteredHotels = markers.filter((m) => (activeTab === 'all' ? true : Math.floor(m.bintang || 0) === parseInt(activeTab, 10)));
+    // Mendapatkan total hotel yang difilter oleh tab aktif
+    const totalFilteredHotels = currentFilteredHotels.length;
 
     return (
         <View style={styles.container}>
+            
+            {/* ======================================================= */}
+            {/* INPUT PENCARIAN NAMA HOTEL (Modern Floating Design) */}
+            {/* ======================================================= */}
+            <View style={styles.searchContainerOverlay}>
+                <View style={styles.searchBox}>
+                    <FontAwesome name="search" size={18} color={COLOR_SECONDARY} style={styles.searchIcon} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Cari hotel berdasarkan nama..."
+                        placeholderTextColor={COLOR_SECONDARY}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+                            <FontAwesome name="close" size={16} color={COLOR_SECONDARY} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+            {/* ======================================================= */}
+
+
             {/* Map View */}
             <MapView
+                ref={mapRef}
                 style={styles.map}
                 initialRegion={{ latitude: -7.7956, longitude: 110.3695, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
                 zoomControlEnabled={true}
             >
-                {filteredHotels.map((marker) => (
-                    <Marker key={marker.id} coordinate={{ latitude: marker.latitude, longitude: marker.longitude }} title={marker.name} pinColor={getStarColor(marker.bintang)} onPress={() => handleMarkerPress(marker)} />
+                {/* Marker Lokasi Pengguna (Jika ada) */}
+                {userLocation && (
+                    <>
+                        <Marker
+                            coordinate={userLocation}
+                            title="Lokasi Saya"
+                            pinColor="#1e90ff" // Warna biru terang untuk lokasi pengguna
+                        >
+                            <View style={styles.userMarker}>
+                                <FontAwesome name="crosshairs" size={18} color="#fff" />
+                            </View>
+                        </Marker>
+                        {/* Buffer Lingkaran */}
+                        <Circle
+                            center={userLocation}
+                            radius={searchRadius * 1000} // radius dalam meter
+                            fillColor="rgba(30, 144, 255, 0.1)"
+                            strokeColor="rgba(30, 144, 255, 0.5)"
+                            strokeWidth={2}
+                        />
+                    </>
+                )}
+                
+                {/* Markers Hotel */}
+                {currentFilteredHotels.map((marker) => (
+                    <Marker 
+                        key={marker.id} 
+                        coordinate={{ latitude: marker.latitude, longitude: marker.longitude }} 
+                        title={marker.name} 
+                        pinColor={getStarColor(marker.bintang)} 
+                        onPress={() => handleMarkerPress(marker)} 
+                    />
                 ))}
             </MapView>
             
-
             {/* Floating Action Button (FAB) for Admin */}
             {role === 'admin' && (
                 <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => router.push('/forminputlocation')}>
@@ -370,16 +581,43 @@ export default function MapScreen() {
                 </TouchableOpacity>
             )}
 
+            {/* Tombol Akses Lokasi Pengguna (FAB kedua, di atas tab) */}
+            <TouchableOpacity 
+                style={[styles.locationFab, locationLoading && { opacity: 0.6 }]} 
+                activeOpacity={0.9} 
+                onPress={getUserLocation}
+                disabled={locationLoading}
+            >
+                {locationLoading ? (
+                    <ActivityIndicator size="small" color="white" />
+                ) : (
+                    <FontAwesome name="location-arrow" size={24} color="white" />
+                )}
+            </TouchableOpacity>
+
             {/* Tab Filter for Star Ratings */}
             <View style={styles.tabContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
-                    <TouchableOpacity style={[styles.tab, activeTab === 'all' && styles.tabActive]} activeOpacity={0.8} onPress={() => setActiveTab('all')}>
-                        <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Semua ({markers.length})</Text>
+                    
+                    {/* Tab Lokasi Terdekat */}
+                    <TouchableOpacity 
+                        style={[styles.tab, activeTab === 'near' && styles.tabActive]} 
+                        activeOpacity={0.8} 
+                        onPress={() => setActiveTab('near')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'near' && styles.tabTextActive]}>
+                            {userLocation ? 'Terdekat' : 'Cari Terdekat'} ({activeTab === 'near' ? getNearestHotels(filteredBySearch).length : 0})
+                        </Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.tab, activeTab === 'all' && styles.tabActive]} activeOpacity={0.8} onPress={() => setActiveTab('all')}>
+                        <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Semua ({filteredBySearch.length})</Text>
+                    </TouchableOpacity>
+                    
                     {[3, 4, 5].map((star) => (
                         <TouchableOpacity key={star} style={[styles.tab, activeTab === String(star) && styles.tabActive]} activeOpacity={0.8} onPress={() => setActiveTab(String(star) as any)}>
                             <Text style={[styles.tabText, activeTab === String(star) && styles.tabTextActive]}>
-                                <Text style={{ color: activeTab !== String(star) ? getStarColor(star) : '#fff', fontWeight: 'bold' }}>{renderStarRating(star)}</Text> ({groupedByStars[star].length})
+                                <Text style={{ color: activeTab !== String(star) ? getStarColor(star) : '#fff', fontWeight: 'bold' }}>{renderStarRating(star)}</Text> ({filteredBySearch.filter(m => Math.floor(m.bintang || 0) === star).length})
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -389,43 +627,68 @@ export default function MapScreen() {
             {/* Hotel List Section */}
             <View style={styles.listContainer}>
                 <ScrollView showsVerticalScrollIndicator={false}>
+                    
+                    {/* Menampilkan pesan jika tidak ada hasil pencarian */}
+                    {searchQuery.length > 0 && currentFilteredHotels.length === 0 && (
+                        <Text style={[styles.emptyText, { backgroundColor: '#fcd34d30', color: '#f59e0b' }]}>
+                            Tidak ditemukan hotel dengan nama **"{searchQuery}"** pada filter aktif.
+                        </Text>
+                    )}
+
+                    {activeTab === 'near' && userLocation && (
+                        <View style={{ paddingVertical: 10 }}>
+                            <Text style={[styles.starHeaderText, { borderLeftWidth: 0, paddingHorizontal: 0 }]}>
+                                Hotel Terdekat (dalam radius {searchRadius} km):
+                            </Text>
+                            {totalFilteredHotels > 0 ? (
+                                <FlatList
+                                    data={currentFilteredHotels}
+                                    scrollEnabled={false}
+                                    renderItem={({ item }) => renderHotelCard(item)}
+                                    keyExtractor={(item) => item.id}
+                                />
+                            ) : (
+                                searchQuery.length === 0 && (
+                                    <Text style={styles.emptyText}>Tidak ada hotel dalam radius {searchRadius} km.</Text>
+                                )
+                            )}
+                        </View>
+                    )}
+
+                    {activeTab === 'near' && !userLocation && !locationLoading && searchQuery.length === 0 && (
+                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                            <Text style={[styles.emptyText, { backgroundColor: '#ffe0b2' }]}>
+                                Tekan tombol 🎯 di atas untuk mengaktifkan pencarian hotel terdekat.
+                            </Text>
+                        </View>
+                    )}
+
                     {activeTab === 'all' ? (
                         <>
-                            {renderStarSection(5, groupedByStars[5])}
-                            {renderStarSection(4, groupedByStars[4])}
-                            {renderStarSection(3, groupedByStars[3])}
+                            {renderStarSection(5, filteredBySearch.filter(m => Math.floor(m.bintang || 0) === 5))}
+                            {renderStarSection(4, filteredBySearch.filter(m => Math.floor(m.bintang || 0) === 4))}
+                            {renderStarSection(3, filteredBySearch.filter(m => Math.floor(m.bintang || 0) === 3))}
                         </>
                     ) : (
-                        <View style={{ paddingVertical: 10 }}>
-                            <Text style={styles.starHeaderText}>
-                                <Text style={{ color: getStarColor(parseInt(activeTab, 10)) }}>{renderStarRating(parseInt(activeTab, 10))}</Text> Hotel Bintang {activeTab}
-                            </Text>
-                            <FlatList
-                                data={filteredHotels}
-                                scrollEnabled={false}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity style={styles.hotelCard} activeOpacity={0.8} onPress={() => handleMarkerPress(item)}>
-                                        <View style={styles.hotelCardIcon}>
-                                            <FontAwesome name="bed" size={20} color={getStarColor(item.bintang)} />
-                                        </View>
-                                        <View style={styles.hotelCardContent}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                                                <Text style={styles.hotelName}>{item.name}</Text>
-                                            </View>
-                                            <Text style={styles.hotelAddress} numberOfLines={1}>
-                                                <FontAwesome name="map-marker" size={12} color={COLOR_SECONDARY} /> {item.alamat}
-                                            </Text>
-                                            <Text style={{ color: getStarColor(item.bintang), fontSize: 13, fontWeight: '600' }}>
-                                                {renderStarRating(item.bintang)}
-                                                <Text style={{ color: COLOR_SECONDARY, fontWeight: '400', fontSize: 11 }}> ({Math.floor(item.bintang || 0)} bintang)</Text>
-                                            </Text>
-                                        </View>
-                                        <FontAwesome name="chevron-right" size={16} color="#ccc" />
-                                    </TouchableOpacity>
+                        activeTab !== 'near' && (
+                            <View style={{ paddingVertical: 10 }}>
+                                <Text style={[styles.starHeaderText, { borderLeftWidth: 0, paddingHorizontal: 0 }]}>
+                                    Hotel Bintang {activeTab}
+                                </Text>
+                                {totalFilteredHotels > 0 ? (
+                                    <FlatList
+                                        data={currentFilteredHotels}
+                                        scrollEnabled={false}
+                                        renderItem={({ item }) => renderHotelCard(item)}
+                                        keyExtractor={(item) => item.id}
+                                    />
+                                ) : (
+                                    searchQuery.length === 0 && (
+                                        <Text style={styles.emptyText}>Tidak ada hotel di kategori ini.</Text>
+                                    )
                                 )}
-                                keyExtractor={(item) => item.id}
-                            />
-                        </View>
+                            </View>
+                        )
                     )}
                     <View style={{ height: 40 }} />
                 </ScrollView>
@@ -449,8 +712,59 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLOR_BACKGROUND },
-    map: { width: '100%', height: '45%' }, // Tingkatkan tinggi peta agar lebih dominan
+    map: { width: '100%', height: '45%' }, 
 
+    // =======================================================
+    // STYLE PENCARIAN BARU (Lebih menarik/modern/interaktif)
+    // =======================================================
+    searchContainerOverlay: {
+        position: 'absolute',
+        top: 10,
+        width: '100%',
+        zIndex: 20, // Di atas MapView
+        alignItems: 'center',
+    },
+    searchBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 15,
+        backgroundColor: COLOR_CARD_BACKGROUND,
+        borderRadius: 25, // Sudut membulat
+        height: 50,
+        marginHorizontal: 15, // Jarak dari tepi
+        elevation: 6, // Shadow Android
+        shadowColor: '#000', // Shadow iOS
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    searchIcon: {
+        marginRight: 10,
+    },
+    searchInput: {
+        flex: 1,
+        height: '100%',
+        fontSize: 16,
+        color: '#212529',
+    },
+    clearSearchButton: {
+        padding: 5,
+        marginLeft: 10,
+    },
+    // =======================================================
+
+
+    // Marker Lokasi Pengguna
+    userMarker: {
+        backgroundColor: '#1e90ff',
+        padding: 8,
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    
     // --- FAB (Floating Action Button) ---
     fab: {
         position: 'absolute',
@@ -459,9 +773,28 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         right: 20,
-        bottom: 240, // Posisikan lebih tinggi dari list/tab
+        // Disesuaikan agar tidak bertabrakan dengan search input
+        bottom: 240, 
         backgroundColor: COLOR_PRIMARY,
-        borderRadius: 25, // Membuat lingkaran sempurna
+        borderRadius: 25, 
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        zIndex: 10,
+    },
+    locationFab: {
+        position: 'absolute',
+        width: 50,
+        height: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        right: 20,
+        // Disesuaikan agar tidak bertabrakan dengan search input
+        bottom: 180, 
+        backgroundColor: '#38bdf8', 
+        borderRadius: 25, 
         elevation: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -478,7 +811,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderBottomColor: COLOR_BORDER,
         borderTopColor: COLOR_BORDER,
-        elevation: 2, // Beri sedikit elevasi
+        elevation: 2, 
     },
     tabContent: { paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' },
     tab: {
@@ -506,7 +839,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         paddingHorizontal: 15,
-        backgroundColor: '#e9f2fb', // Latar belakang yang lebih cerah
+        backgroundColor: '#e9f2fb', 
         borderRadius: 10,
         marginBottom: 8,
         borderLeftWidth: 5,
@@ -524,7 +857,7 @@ const styles = StyleSheet.create({
         marginVertical: 6,
         backgroundColor: COLOR_CARD_BACKGROUND,
         borderRadius: 10,
-        borderWidth: 0, // Hapus border
+        borderWidth: 0, 
         elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -535,6 +868,11 @@ const styles = StyleSheet.create({
     hotelCardContent: { flex: 1, marginRight: 10 },
     hotelName: { fontSize: 15, fontWeight: '700', color: '#212529', flex: 1 },
     hotelAddress: { fontSize: 12, color: COLOR_SECONDARY, marginBottom: 4, flexDirection: 'row', alignItems: 'center' },
+    distanceText: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: COLOR_PRIMARY,
+    },
 
     emptyText: {
         fontSize: 14,
@@ -548,7 +886,7 @@ const styles = StyleSheet.create({
     // --- Overlay & Bottom Sheet ---
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Overlay yang sedikit lebih gelap
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', 
         zIndex: 999,
     },
     overlayTouch: { flex: 1 },
@@ -561,7 +899,7 @@ const styles = StyleSheet.create({
         height: SCREEN_HEIGHT,
         maxHeight: SCREEN_HEIGHT * 0.5,
         backgroundColor: COLOR_CARD_BACKGROUND,
-        borderTopLeftRadius: 25, // Radius yang lebih besar
+        borderTopLeftRadius: 25, 
         borderTopRightRadius: 25,
         elevation: 10,
         shadowColor: '#000',
@@ -572,7 +910,7 @@ const styles = StyleSheet.create({
     },
 
     handle: {
-        width: 50, // Handle yang lebih besar
+        width: 50, 
         height: 4,
         backgroundColor: '#ccc',
         borderRadius: 2,
@@ -586,7 +924,7 @@ const styles = StyleSheet.create({
     },
 
     bottomSheetContentContainer: {
-        paddingBottom: 60, // Padding bawah yang cukup
+        paddingBottom: 60, 
     },
 
     // --- Detail Content (Bottom Sheet) ---
@@ -604,7 +942,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         marginBottom: 16,
         justifyContent: 'space-between',
-        marginHorizontal: -6, // Menyesuaikan margin horizontal tombol
+        marginHorizontal: -6, 
     },
 
     actionBtn: {
@@ -632,6 +970,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLOR_BACKGROUND,
         borderRadius: 10,
         borderLeftWidth: 4,
+        borderLeftColor: COLOR_PRIMARY,
         alignItems: 'flex-start',
     },
     infoLabel: {
@@ -652,7 +991,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         paddingHorizontal: 15,
         paddingVertical: 15,
-        backgroundColor: '#e7f3ff', // Background khusus untuk deskripsi
+        backgroundColor: '#e7f3ff', 
         borderRadius: 10,
         borderLeftWidth: 4,
         borderLeftColor: COLOR_PRIMARY,
@@ -678,7 +1017,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLOR_CARD_BACKGROUND,
         borderRadius: 10,
         borderLeftWidth: 3,
-        borderLeftColor: '#ffc107', // Warna sekunder untuk section
+        borderLeftColor: '#ffc107', 
         borderWidth: 1,
         borderColor: COLOR_BORDER,
     },
