@@ -1,4 +1,3 @@
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -6,7 +5,7 @@ import { Fonts } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View, ImageBackground, ScrollView, Dimensions } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, ImageBackground, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebase';
 
 // Pastikan path ini benar untuk gambar Tugu Anda
@@ -15,10 +14,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // MODIFIKASI: Menyesuaikan CARD_WIDTH agar memenuhi lebar layar penuh
 const CAROUSEL_HORIZONTAL_PADDING = 16; // Padding horizontal yang sama dengan contentWrapper
-const CARD_SPACING = 16; // Jarak antar kartu di dalam carousel
+const CARD_SPACING = 12; // Jarak antar kartu di dalam carousel
 
 // CARD_WIDTH = Lebar layar dikurangi padding kiri/kanan.
-const CARD_WIDTH = SCREEN_WIDTH - (CAROUSEL_HORIZONTAL_PADDING * 2);
+const CARD_WIDTH = SCREEN_WIDTH * 0.9;
 const SNAP_WIDTH = CARD_WIDTH + CARD_SPACING; // Jarak snap: Card Width + Spacing
 
 export default function TabTwoScreen() {
@@ -141,113 +140,89 @@ export default function TabTwoScreen() {
         },
       ]}
     >
-      {/* Featured Hotels Carousel */}
-      {featuredHotels.length > 0 && (
-        <View style={styles.featuredSection}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleWrapper}>
-              <IconSymbol size={20} color="#f59e0b" name="star.fill" />
-              <Text style={styles.sectionTitle}>Hotel Pilihan</Text>
-            </View>
-            <View style={styles.carouselDots}>
-              {featuredHotels.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.dot,
-                    index === featuredIndex && styles.dotActive,
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
+          {/* Featured Hotels Carousel */}
+          {featuredHotels.length > 0 && (
+            <View style={styles.featuredSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleWrapper}>
+                  <IconSymbol size={20} color="#f59e0b" name="star.fill" />
+                  <Text style={styles.sectionTitle}>Hotel Pilihan</Text>
+                </View>
+                <View style={styles.carouselDots}>
+                  {featuredHotels.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.dot,
+                        index === featuredIndex && styles.dotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
 
-          <ScrollView
-            ref={scrollViewRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={SNAP_WIDTH}
-            contentContainerStyle={styles.carouselContent}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={(event) => {
-              const contentOffsetX = event.nativeEvent.contentOffset.x;
-              const newIndex = Math.round(contentOffsetX / SNAP_WIDTH);
-              setFeaturedIndex(newIndex);
-            }}
-          >
-            {featuredHotels.map((item, index) => (
-              <Animated.View
-                key={item.id}
-                style={[
-                  styles.featuredCard,
-                  {
-                    opacity: cardAnims[index] || 1,
-                    transform: [
-                      {
-                        translateY: (cardAnims[index] || new Animated.Value(1)).interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [30, 0],
-                        }),
-                      },
-                    ],
-                    marginLeft: index === 0 ? 0 : 0,
-                    marginRight: index < featuredHotels.length - 1 ? CARD_SPACING : 0,
-                    width: CARD_WIDTH,
-                  }
-                ]}
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={CARD_WIDTH + CARD_SPACING}
+                contentContainerStyle={styles.carouselContent}
+                scrollEventThrottle={16}
               >
-                <View style={styles.featuredCardInner}>
-                  {/* Icon & Info */}
-                  <View style={styles.featuredTop}>
-                    <View style={styles.featuredIconContainer}>
-                      <Text style={styles.featuredHotelIcon}>🏨</Text>
-                      <View style={styles.featuredBadge}>
-                        <IconSymbol size={10} color="#fff" name="sparkles" />
-                      </View>
-                    </View>
-
-                    <View style={styles.featuredInfo}>
-                      <Text style={styles.featuredTitle} numberOfLines={2}>
-                        {item.name}
-                      </Text>
-                      <View style={styles.featuredLocation}>
-                        <IconSymbol size={12} color="#f97316" name="mappin.circle.fill" />
-                        <Text style={styles.featuredAddress} numberOfLines={1}>
-                          {item.alamat || 'Lokasi tidak tersedia'}
-                        </Text>
-                      </View>
-                      {item.bintang && (
-                        <View style={styles.featuredRating}>
-                          {[...Array(item.bintang)].map((_, i) => (
-                            <IconSymbol key={i} size={12} color="#fbbf24" name="star.fill" />
-                          ))}
+                {featuredHotels.map((item) => (
+                  <View key={item.id} style={styles.featuredCard}>
+                    <View style={styles.featuredCardInner}>
+                      {/* Icon & Info */}
+                      <View style={styles.featuredTop}>
+                        <View style={styles.featuredIconContainer}>
+                          <Text style={styles.featuredHotelIcon}>🏨</Text>
+                          <View style={styles.featuredBadge}>
+                            <IconSymbol size={10} color="#fff" name="sparkles" />
+                          </View>
                         </View>
-                      )}
+                        
+                        <View style={styles.featuredInfo}>
+                          <Text style={styles.featuredTitle} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                          <View style={styles.featuredLocation}>
+                            <IconSymbol size={12} color="#f97316" name="mappin.circle.fill" />
+                            <Text style={styles.featuredAddress} numberOfLines={1}>
+                              {item.alamat || 'Lokasi tidak tersedia'}
+                            </Text>
+                          </View>
+                          {item.bintang && (
+                            <View style={styles.featuredRating}>
+                              {[...Array(item.bintang)].map((_, i) => (
+                                <IconSymbol key={i} size={12} color="#fbbf24" name="star.fill" />
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Review Button */}
+                      <TouchableOpacity
+                        style={styles.featuredReviewBtn}
+                        onPress={() =>
+                          router.push(
+                            `/forminputulasan?id=${item.id}&name=${encodeURIComponent(item.name)}`
+                          )
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <IconSymbol size={18} color="#fff" name="square.and.pencil" />
+                        <Text style={styles.featuredReviewText}>Tulis Ulasan</Text>
+                        <IconSymbol size={14} color="#fff" name="chevron.right" />
+                      </TouchableOpacity>
                     </View>
                   </View>
-
-                  {/* Review Button */}
-                  <TouchableOpacity
-                    style={styles.featuredReviewBtn}
-                    onPress={() =>
-                      router.push(
-                        `/forminputulasan?id=${item.id}&name=${encodeURIComponent(item.name)}`
-                      )
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <IconSymbol size={18} color="#fff" name="square.and.pencil" />
-                    <Text style={styles.featuredReviewText}>Tulis Ulasan</Text>
-                    <IconSymbol size={14} color="#fff" name="chevron.right" />
-                  </TouchableOpacity>
-                </View>
-              </Animated.View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
       {/* Regular Hotels List */}
       {regularHotels.length > 0 && (
@@ -343,29 +318,30 @@ export default function TabTwoScreen() {
           <ImageBackground
             source={HERO}
             style={styles.heroImage}
-            imageStyle={{ borderRadius: 20 }}
+            imageStyle={styles.heroImageStyle} // Menggunakan style baru
           >
             <View style={styles.heroOverlay} />
             <View style={styles.heroContent}>
-              <View style={styles.iconWrapper}>
-                <IconSymbol
-                  size={64}
-                  color="#fff"
-                  name="building.2.crop.circle.fill"
-                  style={styles.headerIcon}
-                />
+              {/* MODIFIKASI: Gaya ikon dan judul diubah */}
+              <View style={styles.heroHeaderContainer}>
+                <View style={styles.iconWrapperModified}>
+                  <IconSymbol
+                    size={48}
+                    color="#fff"
+                    name="building.2.crop.circle.fill"
+                  />
+                </View>
+                <Text style={styles.heroTitleModified}>Jelajahi Hotel Yogyakarta</Text>
               </View>
-              <Text style={styles.heroTitle}>Jelajahi Hotel</Text>
+
               <Text style={styles.heroSubtitle}>Platform Ulasan Hotel Terbaik di Yogyakarta. Temukan dan ulas hotel favorit Anda!</Text>
+              
               <View style={styles.heroBadges}>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>✨ Ulasan</Text>
+                <View style={styles.badgeModified}>
+                  <Text style={styles.badgeText}>🌟 Ulasan Terverifikasi</Text>
                 </View>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>📍 Lokasi</Text>
-                </View>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>🚀 Cepat</Text>
+                <View style={styles.badgeModified}>
+                  <Text style={styles.badgeText}>📍 Lokasi Akurat</Text>
                 </View>
               </View>
             </View>
@@ -448,7 +424,7 @@ export default function TabTwoScreen() {
           },
         ]}
       >
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.fab}
           onPress={() => router.push('/forminput')}
           activeOpacity={0.85}
@@ -457,7 +433,7 @@ export default function TabTwoScreen() {
             <IconSymbol size={24} color="#ffffff" name="plus.circle.fill" />
             <Text style={styles.fabText}>Tambah Hotel</Text>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </Animated.View>
     </ThemedView>
   );
@@ -468,83 +444,109 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#f8fafc' },
   container: { paddingBottom: 40 },
 
-  // --- HERO SECTION ---
+  // Hero Section
   heroWrap: {
     marginBottom: 20,
-    paddingHorizontal: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
+
   },
   heroImage: {
     width: '100%',
-    height: 300,
+    height: 380, // Ketinggian sedikit diturunkan
     justifyContent: 'flex-end',
+  },
+  heroImageStyle: {
+    borderRadius: 20, // Agar border radius di ImageBackground berfungsi
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)', // Overlay lebih gelap
     borderRadius: 20,
   },
   heroContent: {
     padding: 24,
     paddingBottom: 32,
-    alignItems: 'center',
+    alignItems: 'center', // Konten di tengah
   },
-  iconWrapper: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 16,
-    borderRadius: 100,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    marginBottom: 16,
-  },
-  headerIcon: {
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.3,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 5,
-    marginBottom: 8,
-  },
+  
+  // MODIFIKASI GAYA HERO (JELAJAHI HOTEL)
+// Di dalam styles = StyleSheet.create({...});
+
+// Pastikan heroContent rata tengah dan memenuhi lebar
+heroContent: {
+  padding: 24,
+  paddingBottom: 32,
+  alignItems: 'center', // Penting agar konten utama rata tengah
+},
+
+// Container Judul (Hero)
+heroHeaderContainer: {
+  // Tetap rata tengah
+  alignItems: 'center',
+  marginBottom: 20,
+  
+  // Efek Kaca (Glassmorphism ringan)
+  backgroundColor: 'rgba(255, 255, 255, 0.15)', // Sedikit lebih solid
+  paddingHorizontal: 25, // Padding diperbesar
+  paddingVertical: 18,   // Padding diperbesar
+  borderRadius: 20, // Border radius dibuat lebih bulat
+  borderWidth: 1,
+  borderColor: 'rgba(255, 255, 255, 0.4)', // Border lebih jelas
+  
+  // Tambahan efek bayangan teks untuk pop-out
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+},
+
+
+// Teks Judul
+heroTitleModified: {
+  fontSize: 26, // Ukuran font diperbesar sedikit
+  fontWeight: '900',
+  color: '#fff',
+  letterSpacing: 0.5, // Letter spacing diubah agar lebih mudah dibaca
+  textAlign: 'center',
+  // Text Shadow dibuat lebih halus
+  textShadowColor: 'rgba(0, 0, 0, 0.8)',
+  textShadowOffset: { width: 0, height: 3 },
+  textShadowRadius: 6,
+},
   heroSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#e2e8f0',
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontWeight: '500',
+    letterSpacing: 0.1,
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
     paddingHorizontal: 10,
+    lineHeight: 20,
   },
   heroBadges: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     justifyContent: 'center',
   },
-  badge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+  badgeModified: { // Perubahan dari 'badge'
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   badgeText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
   },
+  
+  // Hapus gaya hero yang lama (iconWrapper, headerIcon, heroTitle, badge)
 
   // --- MODIFIKASI HEADER CONTENT (Pemisahan Visual) ---
   titleContainerModified: {
@@ -731,9 +733,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f59e0b',
     width: 20,
   },
-
   carouselContent: {
-    paddingHorizontal: 0,
+    paddingRight: SCREEN_WIDTH - CARD_WIDTH - CARD_SPACING,
   },
   featuredCard: {
     width: CARD_WIDTH,
@@ -744,6 +745,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     shadowColor: '#0f172a',
+    borderLeftWidth: 4,
+    borderLeftColor: '#0284c7',
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
@@ -853,6 +856,8 @@ const styles = StyleSheet.create({
   regularCard: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#0284c7',
     borderRadius: 18,
     padding: 12,
     marginBottom: 10,
@@ -941,7 +946,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 2,
     borderColor: '#38bdf8',
-    flexDirection: 'row', // MEMASTIKAN IKON MUNCUL: Harus diatur sebagai baris
+    flexDirection: 'row',
   },
   regularReviewText: {
     color: '#fff',

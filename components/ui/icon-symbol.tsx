@@ -14,15 +14,49 @@ type IconSymbolName = keyof typeof MAPPING;
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
 const MAPPING = {
+  // -----------------------
+  // Beranda
+  // -----------------------
   'house.fill': 'home-max',
-  'paperplane.fill': 'travel-explore',
-  'usergraduate.fill': 'supervised-user-circle',
+  'house': 'home-max',
+
+  // -----------------------
+  // Explore / Ulasan
+  // -----------------------
+  'star.bubble.fill': 'star',
+  'star.bubble': 'star-outline',
+
+  // -----------------------
+  // Kirim / Pesan
+  // -----------------------
+  'paperplane.fill': 'send',
+  'paperplane': 'send-outlined',
+
+  // -----------------------
+  // GMap
+  // -----------------------
+  'map.fill': 'map',
+  'map': 'map',
+
+  'gmap.fill': 'location-on',
+  'gmap': 'location-on',
+
+  // -----------------------
+  // Mahasiswa / Pendidikan
+  // -----------------------
+  'usergraduate.fill': 'school',
+  'usergraduate': 'school',
+
+  // -----------------------
+  // Utility Icons
+  // -----------------------
+  'add.circle.fill': 'add-circle',
+  'add.circle': 'add-circle-outline',
+
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
-  'add.circle.fill': 'add',
-  'map.fill': 'map-marked-alt',
-  'gmap.fill': 'map-marker-alt',
 } as IconMapping;
+
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

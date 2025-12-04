@@ -1,12 +1,20 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, ImageBackground, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../providers/AuthProvider';
 
 const HERO = require('../../assets/images/tugu.jpg');
 const { width } = Dimensions.get('window');
+
+const CARD_WIDTH = width * 0.9;
+const CARD_SPACING = 12; // Jarak antar kartu di dalam carousel
+const BG_LIGHT = '#f8fafc'; // Background sangat terang
+const BORDER_SOFT = '#e2e8f0'; // Border halus
+const TEXT_HEADING = '#1e293b';
+const TEXT_BODY = '#475569';
+const ACCENT_STAR = '#ffc107'; // Kuning bintang
 
 // Keep a small set of fallback testimonials to show when DB has none
 const FALLBACK_TESTIMONIALS = [
@@ -56,6 +64,16 @@ export default function HomeScreen() {
   const fadeAnim = new Animated.Value(0);
   const slideAnim = new Animated.Value(30);
   const scaleAnim = new Animated.Value(0.95);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const handleScroll = (event) => {
+        const slideSize = CARD_WIDTH + CARD_SPACING;
+        // Hitung indeks saat ini berdasarkan offset horizontal
+        const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
+        if (index !== activeTestimonial) {
+            setActiveTestimonial(index);
+        }
+    };
 
   // fetch recent reviews from Firebase and show them in testimonials
   useEffect(() => {
@@ -156,19 +174,19 @@ export default function HomeScreen() {
   };
 
   const formatTime = () => {
-    return currentTime.toLocaleTimeString('id-ID', { 
-      hour: '2-digit', 
+    return currentTime.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
   };
 
   const formatDate = () => {
-    return currentTime.toLocaleDateString('id-ID', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return currentTime.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
@@ -183,7 +201,7 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.wrapper}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        
+
         {/* Hero Section with Image Background */}
         <Animated.View style={[styles.heroWrap, { opacity: fadeAnim }]}>
           <ImageBackground source={HERO} style={styles.heroImage} imageStyle={{ borderRadius: 20 }}>
@@ -198,7 +216,7 @@ export default function HomeScreen() {
               </Animated.View>
               <ThemedText type="title" style={styles.heroTitle}>Hotel Finder Yogyakarta</ThemedText>
               <Text style={styles.heroSubtitle}>
-                Platform pencarian hotel terpercaya di Yogyakarta. 
+                Platform pencarian hotel terpercaya di Yogyakarta.
                 Temukan akomodasi terbaik dengan mudah, cepat, dan akurat.
               </Text>
               <View style={styles.heroBadges}>
@@ -218,18 +236,18 @@ export default function HomeScreen() {
 
         {/* CTA Buttons */}
         <Animated.View style={[styles.ctaContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <TouchableOpacity 
-            style={styles.ctaPrimary} 
-            onPress={() => router.push('/(tabs)/gmap')} 
+          <TouchableOpacity
+            style={styles.ctaPrimary}
+            onPress={() => router.push('/(tabs)/gmap')}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaIcon}>📍</Text>
             <Text style={styles.ctaText}>Buka Peta</Text>
             <Text style={styles.ctaSubtext}>Temukan lokasi hotel</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.ctaSecondary} 
-            onPress={() => router.push('/(tabs)/lokasi')} 
+          <TouchableOpacity
+            style={styles.ctaSecondary}
+            onPress={() => router.push('/(tabs)/lokasi')}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaIcon}>📋</Text>
@@ -241,8 +259,8 @@ export default function HomeScreen() {
         {/* Feature Highlights Carousel */}
         <Animated.View style={{ opacity: fadeAnim }}>
           <Text style={styles.sectionHeader}>Mengapa Pilih Kami?</Text>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.highlightsScroll}
           >
@@ -260,9 +278,9 @@ export default function HomeScreen() {
         <Animated.View style={{ opacity: fadeAnim }}>
           <Text style={styles.sectionHeader}>Fitur Unggulan</Text>
           <View style={styles.cardRow}>
-            <TouchableOpacity 
-              style={[styles.card, styles.cardBlue]} 
-              onPress={() => router.push('/(tabs)/gmap')} 
+            <TouchableOpacity
+              style={[styles.card, styles.cardBlue]}
+              onPress={() => router.push('/(tabs)/gmap')}
               activeOpacity={0.9}
             >
               <View style={styles.cardIconWrap}>
@@ -277,9 +295,9 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.card, styles.cardPurple]} 
-              onPress={() => router.push('/(tabs)/lokasi')} 
+            <TouchableOpacity
+              style={[styles.card, styles.cardPurple]}
+              onPress={() => router.push('/(tabs)/lokasi')}
               activeOpacity={0.9}
             >
               <View style={styles.cardIconWrap}>
@@ -299,13 +317,13 @@ export default function HomeScreen() {
         {/* Stats Section with Animation */}
         <Animated.View style={[styles.statsContainer, { transform: [{ scale: scaleAnim }] }]}>
           <View style={styles.statBox}>
-            <Text style={styles.statNumber}>500+</Text>
+            <Text style={styles.statNumber}>100+</Text>
             <Text style={styles.statLabel}>Hotel</Text>
             <Text style={styles.statSubLabel}>Tersedia</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={styles.statNumber}>50+</Text>
+            <Text style={styles.statNumber}>20+</Text>
             <Text style={styles.statLabel}>Lokasi</Text>
             <Text style={styles.statSubLabel}>Di Yogyakarta</Text>
           </View>
@@ -318,54 +336,64 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* Testimonials Section - Using ScrollView Instead */}
-        <View style={styles.testimonialsSection}>
-          <Text style={styles.sectionHeader}>Apa Kata Mereka?</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            pagingEnabled
-            snapToInterval={width * 0.9 + 16}
-            decelerationRate="fast"
-            contentContainerStyle={styles.testimonialsList}
-          >
-            {testimonials.map((item, index) => (
-                <View 
-                  key={item.id + (item.hotelId || '')}
-                  style={[
-                    styles.testimonialCard,
-                    { opacity: activeTestimonial === index ? 1 : 0.85 }
-                  ]}
-                >
-                  <View style={styles.testimonialHeader}>
-                    <View style={styles.avatarCircle}>
-                      <Text style={styles.avatarText}>{String(item.name || item.hotelName || 'U').charAt(0)}</Text>
-                    </View>
-                    <View style={styles.testimonialInfo}>
-                      <Text style={styles.testimonialName}>{item.name}</Text>
-                      <Text style={styles.testimonialRole}>{item.hotelName ? item.hotelName : item.role}</Text>
-                    </View>
-                    <View style={styles.ratingContainer}>
-                      {[...Array(Math.max(0, Number(item.rating || 0)))].map((_, i) => (
-                        <Text key={i} style={styles.star}>⭐</Text>
-                      ))}
-                    </View>
-                  </View>
-                  <Text style={styles.testimonialComment}>"{item.comment}"</Text>
-                </View>
-              ))}
-          </ScrollView>
-          <View style={styles.paginationDots}>
-            {testimonials.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  activeTestimonial === index && styles.activeDot,
-                ]}
-              />
+<View style={styles.testimonialsSection}>
+  <Text style={styles.sectionHeader}>Apa Kata Mereka?</Text>
+  <ScrollView
+    ref={scrollViewRef}
+    horizontal
+    pagingEnabled
+    showsHorizontalScrollIndicator={false}
+    decelerationRate="fast"
+    snapToInterval={CARD_WIDTH + CARD_SPACING} // Menggunakan konstanta CARD_SPACING yang sudah diperbaiki
+    contentContainerStyle={styles.carouselContent} // Mengganti testimonialsList
+    scrollEventThrottle={16}
+    // Tambahkan logic untuk mengupdate dot pagination
+    onScroll={handleScroll} 
+    // Tambahkan style untuk mengatasi ketinggian kartu
+    style={{ maxHeight: 300 }} // Memberi batas tinggi agar kartu tidak memanjang ke bawah
+  >
+    {testimonials.map((item, index) => (
+      <View
+        key={item.id + (item.hotelId || '')}
+        style={[
+          styles.testimonialCard,
+          // Menambahkan margin di sini untuk jarak antar kartu
+          { 
+            marginHorizontal: CARD_SPACING / 2, // Menggunakan setengah jarak untuk spacing
+            opacity: activeTestimonial === index ? 1 : 0.85 
+          }
+        ]}
+      >
+        <View style={styles.testimonialHeader}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{String(item.name || item.hotelName || 'U').charAt(0)}</Text>
+          </View>
+          <View style={styles.testimonialInfo}>
+            <Text style={styles.testimonialName}>{item.name}</Text>
+            <Text style={styles.testimonialRole}>{item.hotelName ? item.hotelName : item.role}</Text>
+          </View>
+          <View style={styles.ratingContainer}>
+            {[...Array(Math.max(0, Number(item.rating || 0)))].map((_, i) => (
+              <Text key={i} style={styles.star}>⭐</Text>
             ))}
           </View>
         </View>
+        <Text style={styles.testimonialComment}>"{item.comment}"</Text>
+      </View>
+    ))}
+  </ScrollView>
+  <View style={styles.paginationDots}>
+    {testimonials.map((_, index) => (
+      <View
+        key={index}
+        style={[
+          styles.dot,
+          activeTestimonial === index && styles.activeDot,
+        ]}
+      />
+    ))}
+  </View>
+</View>
 
         {/* Admin/Public Section */}
         {role === 'admin' ? (
@@ -378,15 +406,15 @@ export default function HomeScreen() {
               Selamat datang, Admin! Kelola data hotel, tambahkan lokasi baru, dan monitor sistem dengan mudah.
             </Text>
             <View style={styles.adminActions}>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.manageBtn]} 
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.manageBtn]}
                 onPress={() => router.push('/lokasi')}
               >
                 <Text style={styles.actionIcon}>⚙️</Text>
                 <Text style={styles.actionText}>Kelola Hotel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.logoutBtn]} 
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.logoutBtn]}
                 onPress={() => signOut()}
               >
                 <Text style={styles.actionIcon}>🚪</Text>
@@ -401,12 +429,12 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.sectionTitle}>Jelajahi Tanpa Batas</Text>
             <Text style={styles.sectionSub}>
-              Nikmati akses penuh ke daftar hotel dan peta interaktif tanpa perlu login. 
+              Nikmati akses penuh ke daftar hotel dan peta interaktif tanpa perlu login.
               Untuk fitur manajemen, silakan login sebagai admin.
             </Text>
             <View style={styles.publicActions}>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.loginBtn]} 
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.loginBtn]}
                 onPress={() => router.push('/login')}
               >
                 <Text style={styles.actionIcon}>🔐</Text>
@@ -425,9 +453,9 @@ export default function HomeScreen() {
             </View>
           </View>
           <Text style={styles.infoText}>
-            Hotel Finder adalah solusi modern untuk menemukan akomodasi di Yogyakarta. 
-            Aplikasi ini dirancang dengan teknologi terkini untuk memberikan pengalaman pencarian 
-            hotel yang cepat, akurat, dan user-friendly. Dengan fitur peta interaktif dan 
+            Hotel Finder adalah solusi modern untuk menemukan akomodasi di Yogyakarta.
+            Aplikasi ini dirancang dengan teknologi terkini untuk memberikan pengalaman pencarian
+            hotel yang cepat, akurat, dan user-friendly. Dengan fitur peta interaktif dan
             database yang selalu terupdate, kami memastikan Anda menemukan hotel terbaik sesuai kebutuhan.
           </Text>
           <View style={styles.infoFeatures}>
@@ -469,7 +497,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 18, color: '#64748b', fontWeight: '600' },
 
   // Hero Section
-  heroWrap: { 
+  heroWrap: {
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
@@ -477,8 +505,8 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  heroImage: { 
-    width: '100%', 
+  heroImage: {
+    width: '100%',
     height: 440,
     justifyContent: 'flex-end',
   },
@@ -487,7 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.50)',
     borderRadius: 20,
   },
-  heroContent: { 
+  heroContent: {
     padding: 24,
     paddingBottom: 32,
   },
@@ -524,7 +552,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '600',
   },
-  heroTitle: { 
+  heroTitle: {
     fontSize: 34,
     fontWeight: '900',
     color: '#fff',
@@ -533,7 +561,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 5,
   },
-  heroSubtitle: { 
+  heroSubtitle: {
     fontSize: 15,
     color: '#e2e8f0',
     lineHeight: 23,
@@ -621,15 +649,16 @@ const styles = StyleSheet.create({
 
   // Highlights Carousel
   highlightsScroll: {
-    paddingHorizontal: 20,
-    gap: 14,
-    marginBottom: 28,
+    paddingHorizontal: 22, // Padding konsisten di sisi kiri dan kanan ScrollView
+    gap: 16, // Jarak antar kartu
+    marginBottom: 20,
   },
   highlightCard: {
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 16,
-    width: width * 0.65,
+    // MODIFIKASI UTAMA: Menggunakan 80% lebar layar untuk tampilan yang lebih responsif dan proporsional.
+    width: width * 0.4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
@@ -664,13 +693,13 @@ const styles = StyleSheet.create({
   },
 
   // Feature Cards
-  cardRow: { 
-    flexDirection: 'row', 
+  cardRow: {
+    flexDirection: 'row',
     gap: 14,
     paddingHorizontal: 20,
     marginBottom: 28,
   },
-  card: { 
+  card: {
     flex: 1,
     padding: 22,
     borderRadius: 18,
@@ -703,13 +732,13 @@ const styles = StyleSheet.create({
   cardEmoji: {
     fontSize: 28,
   },
-  cardTitle: { 
+  cardTitle: {
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
     color: '#1e293b',
   },
-  cardDesc: { 
+  cardDesc: {
     color: '#64748b',
     fontSize: 13,
     lineHeight: 20,
@@ -775,89 +804,120 @@ const styles = StyleSheet.create({
   },
 
   // Testimonials
-  testimonialsSection: {
-    marginBottom: 28,
-  },
-  testimonialsList: {
-    paddingHorizontal: (width - width * 0.9) / 2,
-    gap: 16,
-  },
-  testimonialCard: {
-    width: width * 0.9,
+// Testimonials
+testimonialsSection: {
+    marginBottom: 30,
+    backgroundColor: BG_LIGHT, 
+    paddingVertical: 10,
+},
+
+// --- Container Carousel Content (menggantikan testimonialsList) ---
+carouselContent: {
+    paddingHorizontal: 10, // Memberi jarak tepi kiri/kanan. (10 + CARD_SPACING/2)
+    alignItems: 'flex-start', // **SOLUSI KETINGGIAN:** Mencegah kartu memanjang ke tinggi maksimal ScrollView.
+},
+
+// --- KARTU TESTIMONIAL MODERN ---
+testimonialCard: {
+    width: 300, 
+    minHeight: 180, // **SOLUSI KETINGGIAN:** Sedikit dikecilkan agar lebih padat
+    maxHeight: 250, // Opsional: Beri batas maksimal
+    
     backgroundColor: '#fff',
-    padding: 24,
-    borderRadius: 18,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER_SOFT,
+    
+    // Shadow dan Elevation
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
-  },
-  testimonialHeader: {
+    
+    // Justifikasi konten
+    justifyContent: 'flex-start',
+    
+    // CATATAN: MarginHorizontal sudah dipindahkan ke inline style di JSX
+},
+
+// --- HEADER (Avatar & Rating) ---
+testimonialHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    marginBottom: 10,
+},
+avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#0284c7',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '800',
+},
+avatarText: {
+    fontSize: 20, 
+    fontWeight: '800', 
     color: '#fff',
-  },
-  testimonialInfo: {
+},
+testimonialInfo: {
     flex: 1,
-  },
-  testimonialName: {
+    justifyContent: 'center',
+},
+testimonialName: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#1e293b',
+    fontWeight: '700', 
+    color: TEXT_HEADING,
     marginBottom: 2,
-  },
-  testimonialRole: {
+},
+testimonialRole: {
     fontSize: 13,
-    color: '#64748b',
+    color: TEXT_BODY,
     fontWeight: '500',
-  },
-  ratingContainer: {
+},
+ratingContainer: {
     flexDirection: 'row',
-  },
-  star: {
-    fontSize: 14,
-  },
-  testimonialComment: {
-    fontSize: 14,
-    color: '#475569',
+    alignItems: 'center',
+    marginLeft: 10, // Jarak dari nama hotel
+},
+star: {
+    fontSize: 16, // Bintang sedikit lebih besar
+    color: ACCENT_STAR,
+},
+testimonialComment: {
+    fontSize: 15, // Ditingkatkan
+    color: TEXT_HEADING, 
     lineHeight: 22,
     fontStyle: 'italic',
-  },
-  paginationDots: {
+    marginTop: 8, 
+    paddingTop: 8, 
+    borderTopWidth: 1,
+    borderTopColor: BORDER_SOFT,
+},
+
+// --- DOTS ---
+paginationDots: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
-    gap: 8,
-  },
-  dot: {
+    marginTop: 20, 
+    gap: 8, // Menggunakan gap untuk jarak dot
+},
+dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#cbd5e1',
-  },
-  activeDot: {
+    backgroundColor: BORDER_SOFT,
+},
+activeDot: {
     backgroundColor: '#0284c7',
-    width: 24,
-  },
+    width: 20, // Sedikit lebih panjang
+},
 
   // Admin Section
-  adminSection: { 
+  adminSection: {
     backgroundColor: '#fff',
     marginHorizontal: 20,
     padding: 22,
@@ -885,25 +945,25 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     overflow: 'hidden',
   },
-  sectionTitle: { 
+  sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 10,
     color: '#1e293b',
   },
-  sectionSub: { 
+  sectionSub: {
     color: '#64748b',
     marginBottom: 18,
     lineHeight: 21,
     fontSize: 14,
   },
-  adminActions: { 
+  adminActions: {
     flexDirection: 'row',
     gap: 12,
   },
 
   // Public Section
-  publicSection: { 
+  publicSection: {
     backgroundColor: '#fff',
     marginHorizontal: 20,
     padding: 22,
@@ -936,7 +996,7 @@ const styles = StyleSheet.create({
   },
 
   // Action Buttons
-  actionBtn: { 
+  actionBtn: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 14,
@@ -945,26 +1005,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  manageBtn: { 
+  manageBtn: {
     backgroundColor: '#0284c7',
   },
-  logoutBtn: { 
+  logoutBtn: {
     backgroundColor: '#dc2626',
   },
-  loginBtn: { 
+  loginBtn: {
     backgroundColor: '#0284c7',
   },
   actionIcon: {
     fontSize: 20,
   },
-  actionText: { 
+  actionText: {
     color: '#fff',
     fontWeight: '800',
     fontSize: 15,
   },
 
   // Info Box
-  infoBox: { 
+  infoBox: {
     marginHorizontal: 20,
     backgroundColor: '#f1f5f9',
     padding: 22,
@@ -979,7 +1039,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  infoTitle: { 
+  infoTitle: {
     fontWeight: '800',
     fontSize: 18,
     color: '#1e293b',
@@ -995,7 +1055,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  infoText: { 
+  infoText: {
     color: '#475569',
     lineHeight: 23,
     fontSize: 14,

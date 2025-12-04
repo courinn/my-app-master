@@ -28,17 +28,24 @@ type MarkerItem = BaseMarker & HotelInfo;
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
+// Palet warna yang diperbarui
+const COLOR_PRIMARY = '#0284c7'; // Biru cerah untuk aksi utama
+const COLOR_SECONDARY = '#6c757d'; // Abu-abu gelap untuk teks sekunder
+const COLOR_BACKGROUND = '#f8f9fa'; // Latar belakang aplikasi yang sedikit abu-abu
+const COLOR_CARD_BACKGROUND = '#ffffff'; // Latar belakang kartu putih
+const COLOR_BORDER = '#dee2e6'; // Warna batas/garis pemisah
+
 function getStarColor(stars?: number) {
     const starLevel = Math.floor(stars || 0);
     switch (starLevel) {
         case 3:
-            return '#FF6B6B';
+            return '#f0ad4e'; // Amber/Orange
         case 4:
-            return '#FFA500';
+            return '#ffc107'; // Yellow/Gold
         case 5:
-            return '#10be5eff';
+            return '#28a745'; // Green (Premium)
         default:
-            return '#0275d8';
+            return COLOR_PRIMARY; // Biru default
     }
 }
 
@@ -54,7 +61,7 @@ export default function MapScreen() {
     const panResponder = useRef<any>(null);
 
     // Configure sheet open/closed positions so the sheet shows more content
-    const SHEET_OPEN_Y = SCREEN_HEIGHT * 0.25; // sheet pulled up -> visible ~75% of screen
+    const SHEET_OPEN_Y = SCREEN_HEIGHT * 0.0; // sheet pulled up -> visible ~75% of screen
     const SHEET_CLOSED_Y = SCREEN_HEIGHT; // fully hidden
 
     useEffect(() => {
@@ -89,7 +96,7 @@ export default function MapScreen() {
                         // Use all data from Firebase (already includes both migrated hoteldata + new entries)
                         // Convert reviews into section-like entries so they appear in the detail sections
                         const reviewsFromDb: Array<any> = point.reviews && typeof point.reviews === 'object' ? Object.keys(point.reviews).map(k => ({ id: k, ...point.reviews[k] })) : [];
-                        const reviewSections = reviewsFromDb.map((r) => ({ title: `Ulasan: ${r.userName || 'Anon' } • ${r.rating || ''}⭐`, content: r.comment || '', source: r.createdAt || null }));
+                        const reviewSections = reviewsFromDb.map((r) => ({ title: `Ulasan: ${r.userName || 'Anon'} • ${r.rating || ''}⭐`, content: r.comment || '', source: r.createdAt || null }));
                         const mergedSections = Array.isArray(point.sections) ? [...point.sections, ...reviewSections] : reviewSections.length > 0 ? reviewSections : (point.sections || null);
 
                         return {
@@ -126,7 +133,7 @@ export default function MapScreen() {
 
     const openBottomSheet = () => {
         setShowBottomSheet(true);
-        Animated.spring(bottomSheetY, { toValue: SHEET_OPEN_Y, useNativeDriver: false }).start();
+        Animated.spring(bottomSheetY, { toValue: SHEET_OPEN_Y, useNativeDriver: false, tension: 30, friction: 8 }).start(); // Gunakan spring untuk animasi yang lebih halus
     };
     const closeBottomSheet = () => {
         Animated.timing(bottomSheetY, { toValue: SHEET_CLOSED_Y, duration: 300, useNativeDriver: false }).start(() => {
@@ -175,7 +182,9 @@ export default function MapScreen() {
         <View style={styles.starSection}>
             <View style={styles.starHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <Text style={styles.starHeaderText}>{renderStarRating(stars)} Hotel Bintang {stars}</Text>
+                    <Text style={styles.starHeaderText}>
+                        <Text style={{ color: getStarColor(stars) }}>{renderStarRating(stars)}</Text> Hotel Bintang {stars}
+                    </Text>
                 </View>
                 <View style={[styles.starBadge, { backgroundColor: getStarColor(stars) }]}>
                     <Text style={styles.starCount}>{list.length}</Text>
@@ -186,19 +195,23 @@ export default function MapScreen() {
                     data={list}
                     scrollEnabled={false}
                     renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.hotelCard} onPress={() => handleMarkerPress(item)}>
-                            <View style={styles.hotelCardContent}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                    <Text style={styles.hotelName}>{item.name}</Text>
-                                    <Text style={{ marginLeft: 8, color: getStarColor(item.bintang), fontSize: 12 }}>{renderStarRating(item.bintang)}</Text>
-                                </View>
-                                <Text style={styles.hotelAddress} numberOfLines={1}>{item.alamat}</Text>
-                                <View style={styles.hotelFooter}>
-                                    <FontAwesome name="map-marker" size={14} color="#666" />
-                                    <Text style={styles.hotelCoords}>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</Text>
-                                </View>
+                        <TouchableOpacity style={styles.hotelCard} activeOpacity={0.8} onPress={() => handleMarkerPress(item)}>
+                            <View style={styles.hotelCardIcon}>
+                                <FontAwesome name="bed" size={20} color={getStarColor(item.bintang)} />
                             </View>
-                            <FontAwesome name="chevron-right" size={16} color="#999" />
+                            <View style={styles.hotelCardContent}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                    <Text style={styles.hotelName}>{item.name}</Text>
+                                </View>
+                                <Text style={styles.hotelAddress} numberOfLines={1}>
+                                    <FontAwesome name="map-marker" size={12} color={COLOR_SECONDARY} /> {item.alamat}
+                                </Text>
+                                <Text style={{ color: getStarColor(item.bintang), fontSize: 13, fontWeight: '600' }}>
+                                    {renderStarRating(item.bintang)}
+                                    <Text style={{ color: COLOR_SECONDARY, fontWeight: '400', fontSize: 11 }}> ({Math.floor(item.bintang || 0)} bintang)</Text>
+                                </Text>
+                            </View>
+                            <FontAwesome name="chevron-right" size={16} color="#ccc" />
                         </TouchableOpacity>
                     )}
                     keyExtractor={(item) => item.id}
@@ -218,22 +231,28 @@ export default function MapScreen() {
         >
             {selectedMarker ? (
                 <>
+                    {/* Header Section with Star Rating and Name */}
                     <View style={styles.headerSection}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                            <Text style={[styles.bottomSheetTitle, { color: getStarColor(selectedMarker.bintang) }]}>{renderStarRating(selectedMarker.bintang)}</Text>
-                            <Text style={{ marginLeft: 8, fontSize: 14, color: '#666' }}>({Math.floor(selectedMarker.bintang || 0)} bintang)</Text>
+                            <Text style={[styles.bottomSheetTitle, { color: getStarColor(selectedMarker.bintang), fontSize: 24 }]}>
+                                {renderStarRating(selectedMarker.bintang)}
+                            </Text>
+                            <Text style={{ marginLeft: 8, fontSize: 14, color: COLOR_SECONDARY }}>
+                                ({Math.floor(selectedMarker.bintang || 0)} bintang)
+                            </Text>
                         </View>
                         <Text style={styles.hotelNameBig}>{selectedMarker.name}</Text>
                     </View>
 
+                    {/* Action Buttons */}
                     <View style={styles.actionButtons}>
-                        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8} onPress={openInMaps}>
+                        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLOR_PRIMARY }]} activeOpacity={0.8} onPress={openInMaps}>
                             <FontAwesome name="location-arrow" size={18} color="#fff" />
                             <Text style={styles.actionBtnText}>Arah</Text>
                         </TouchableOpacity>
 
                         {selectedMarker.website && (
-                            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8} onPress={openWebsite}>
+                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ffc107' }]} activeOpacity={0.8} onPress={openWebsite}>
                                 <FontAwesome name="globe" size={18} color="#fff" />
                                 <Text style={styles.actionBtnText}>Website</Text>
                             </TouchableOpacity>
@@ -245,16 +264,12 @@ export default function MapScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={{ height: 1, backgroundColor: '#e9ecef', marginVertical: 16 }} />
+                    <View style={{ height: 1, backgroundColor: COLOR_BORDER, marginVertical: 16 }} />
 
-                    <View style={styles.ratingSection}>
-                        <FontAwesome name="star" size={16} color={getStarColor(selectedMarker.bintang)} />
-                        <Text style={styles.ratingText}>Rating: {selectedMarker.bintang} dari 5 bintang</Text>
-                    </View>
-
+                    {/* General Information Sections */}
                     {selectedMarker.alamat && (
-                        <View style={styles.infoSection}>
-                            <FontAwesome name="map-marker" size={16} color="#0275d8" />
+                        <View style={[styles.infoSection, { borderLeftColor: COLOR_PRIMARY }]}>
+                            <FontAwesome name="map-marker" size={16} color={COLOR_PRIMARY} />
                             <View style={{ flex: 1, marginLeft: 10 }}>
                                 <Text style={styles.infoLabel}>📍 Alamat</Text>
                                 <Text style={styles.infoText}>{selectedMarker.alamat}</Text>
@@ -262,7 +277,7 @@ export default function MapScreen() {
                         </View>
                     )}
 
-                    <View style={styles.infoSection}>
+                    <View style={[styles.infoSection, { borderLeftColor: '#28a745' }]}>
                         <FontAwesome name="location-arrow" size={16} color="#28a745" />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                             <Text style={styles.infoLabel}>📌 Koordinat</Text>
@@ -271,41 +286,43 @@ export default function MapScreen() {
                     </View>
 
                     {selectedMarker.website && (
-                        <View style={styles.infoSection}>
+                        <View style={[styles.infoSection, { borderLeftColor: '#6f42c1' }]}>
                             <FontAwesome name="globe" size={16} color="#6f42c1" />
                             <View style={{ flex: 1, marginLeft: 10 }}>
                                 <Text style={styles.infoLabel}>🌐 Website</Text>
                                 <TouchableOpacity onPress={openWebsite}>
-                                    <Text style={[styles.infoText, { color: '#0275d8', textDecorationLine: 'underline' }]}>{selectedMarker.website}</Text>
+                                    <Text style={[styles.infoText, { color: COLOR_PRIMARY, textDecorationLine: 'underline', fontWeight: '500' }]}>{selectedMarker.website}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                     )}
 
+                    {/* Description Section */}
                     {selectedMarker.deskripsi && (
                         <View style={styles.descriptionSection}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                                <FontAwesome name="info-circle" size={16} color="#0275d8" />
-                                <Text style={[styles.sectionTitle, { marginLeft: 8, marginBottom: 0 }]}>Deskripsi</Text>
+                                <FontAwesome name="info-circle" size={16} color={COLOR_PRIMARY} />
+                                <Text style={[styles.sectionTitle, { marginLeft: 8, marginBottom: 0 }]}>Deskripsi Singkat</Text>
                             </View>
                             <Text style={styles.descriptionText}>{selectedMarker.deskripsi}</Text>
                         </View>
                     )}
 
+                    {/* Detailed Sections (Reviews/Info) */}
                     {selectedMarker.sections && selectedMarker.sections.length > 0 && (
                         <View style={{ marginTop: 16 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                                <FontAwesome name="list" size={16} color="#0275d8" />
-                                <Text style={[styles.sectionTitle, { marginLeft: 8, marginBottom: 0 }]}>Informasi Lengkap</Text>
+                                <FontAwesome name="list-alt" size={18} color={COLOR_PRIMARY} />
+                                <Text style={[styles.sectionTitle, { marginLeft: 8, marginBottom: 0 }]}>Informasi & Ulasan</Text>
                             </View>
                             {selectedMarker.sections.map((section, index) => (
                                 <View key={index} style={styles.sectionContainer}>
                                     <View style={styles.sectionHeader}>
-                                        <FontAwesome name="info-circle" size={14} color="#0275d8" />
+                                        <FontAwesome name="tag" size={14} color={COLOR_PRIMARY} />
                                         <Text style={[styles.sectionTitle, { marginBottom: 0, marginLeft: 6 }]}>{section.title}</Text>
                                     </View>
                                     <Text style={styles.sectionContent}>{section.content}</Text>
-                                    {section.source && <Text style={styles.sectionSource}>📌 Sumber: {section.source}</Text>}
+                                    {section.source && <Text style={styles.sectionSource}>📅 Tanggal/Sumber: {section.source}</Text>}
                                 </View>
                             ))}
                         </View>
@@ -315,7 +332,7 @@ export default function MapScreen() {
                 </>
             ) : (
                 <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                    <Text style={{ color: '#999', fontSize: 14 }}>Informasi hotel tidak tersedia.</Text>
+                    <Text style={{ color: COLOR_SECONDARY, fontSize: 14 }}>Informasi hotel tidak tersedia.</Text>
                 </View>
             )}
         </ScrollView>
@@ -324,8 +341,8 @@ export default function MapScreen() {
     if (loading) {
         return (
             <View style={styles.container}>
-                <ActivityIndicator size="large" color="#0275d8" />
-                <Text style={{ marginTop: 10 }}>Memuat data peta...</Text>
+                <ActivityIndicator size="large" color={COLOR_PRIMARY} />
+                <Text style={{ marginTop: 10, color: COLOR_SECONDARY }}>Memuat data peta...</Text>
             </View>
         );
     }
@@ -334,6 +351,7 @@ export default function MapScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Map View */}
             <MapView
                 style={styles.map}
                 initialRegion={{ latitude: -7.7956, longitude: 110.3695, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
@@ -343,62 +361,77 @@ export default function MapScreen() {
                     <Marker key={marker.id} coordinate={{ latitude: marker.latitude, longitude: marker.longitude }} title={marker.name} pinColor={getStarColor(marker.bintang)} onPress={() => handleMarkerPress(marker)} />
                 ))}
             </MapView>
+            
 
+            {/* Floating Action Button (FAB) for Admin */}
             {role === 'admin' && (
-                <TouchableOpacity style={styles.fab} onPress={() => router.push('/forminputlocation')}>
+                <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => router.push('/forminputlocation')}>
                     <FontAwesome name="plus" size={24} color="white" />
                 </TouchableOpacity>
             )}
 
+            {/* Tab Filter for Star Ratings */}
             <View style={styles.tabContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
-                    <TouchableOpacity style={[styles.tab, activeTab === 'all' && styles.tabActive]} onPress={() => setActiveTab('all')}>
+                    <TouchableOpacity style={[styles.tab, activeTab === 'all' && styles.tabActive]} activeOpacity={0.8} onPress={() => setActiveTab('all')}>
                         <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Semua ({markers.length})</Text>
                     </TouchableOpacity>
                     {[3, 4, 5].map((star) => (
-                        <TouchableOpacity key={star} style={[styles.tab, activeTab === String(star) && styles.tabActive]} onPress={() => setActiveTab(String(star) as any)}>
-                            <Text style={[styles.tabText, activeTab === String(star) && styles.tabTextActive]}>{renderStarRating(star)} ({groupedByStars[star].length})</Text>
+                        <TouchableOpacity key={star} style={[styles.tab, activeTab === String(star) && styles.tabActive]} activeOpacity={0.8} onPress={() => setActiveTab(String(star) as any)}>
+                            <Text style={[styles.tabText, activeTab === String(star) && styles.tabTextActive]}>
+                                <Text style={{ color: activeTab !== String(star) ? getStarColor(star) : '#fff', fontWeight: 'bold' }}>{renderStarRating(star)}</Text> ({groupedByStars[star].length})
+                            </Text>
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
             </View>
 
+            {/* Hotel List Section */}
             <View style={styles.listContainer}>
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {activeTab === 'all' ? (
                         <>
-                            {renderStarSection(3, groupedByStars[3])}
-                            {renderStarSection(4, groupedByStars[4])}
                             {renderStarSection(5, groupedByStars[5])}
+                            {renderStarSection(4, groupedByStars[4])}
+                            {renderStarSection(3, groupedByStars[3])}
                         </>
                     ) : (
-                        <View>
+                        <View style={{ paddingVertical: 10 }}>
+                            <Text style={styles.starHeaderText}>
+                                <Text style={{ color: getStarColor(parseInt(activeTab, 10)) }}>{renderStarRating(parseInt(activeTab, 10))}</Text> Hotel Bintang {activeTab}
+                            </Text>
                             <FlatList
                                 data={filteredHotels}
                                 scrollEnabled={false}
                                 renderItem={({ item }) => (
-                                    <TouchableOpacity style={styles.hotelCard} onPress={() => handleMarkerPress(item)}>
-                                        <View style={styles.hotelCardContent}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                                <Text style={styles.hotelName}>{item.name}</Text>
-                                                <Text style={{ marginLeft: 8, color: getStarColor(item.bintang), fontSize: 12 }}>{renderStarRating(item.bintang)}</Text>
-                                            </View>
-                                            <Text style={styles.hotelAddress} numberOfLines={1}>{item.alamat}</Text>
-                                            <View style={styles.hotelFooter}>
-                                                <FontAwesome name="map-marker" size={14} color="#666" />
-                                                <Text style={styles.hotelCoords}>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</Text>
-                                            </View>
+                                    <TouchableOpacity style={styles.hotelCard} activeOpacity={0.8} onPress={() => handleMarkerPress(item)}>
+                                        <View style={styles.hotelCardIcon}>
+                                            <FontAwesome name="bed" size={20} color={getStarColor(item.bintang)} />
                                         </View>
-                                        <FontAwesome name="chevron-right" size={16} color="#999" />
+                                        <View style={styles.hotelCardContent}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                                <Text style={styles.hotelName}>{item.name}</Text>
+                                            </View>
+                                            <Text style={styles.hotelAddress} numberOfLines={1}>
+                                                <FontAwesome name="map-marker" size={12} color={COLOR_SECONDARY} /> {item.alamat}
+                                            </Text>
+                                            <Text style={{ color: getStarColor(item.bintang), fontSize: 13, fontWeight: '600' }}>
+                                                {renderStarRating(item.bintang)}
+                                                <Text style={{ color: COLOR_SECONDARY, fontWeight: '400', fontSize: 11 }}> ({Math.floor(item.bintang || 0)} bintang)</Text>
+                                            </Text>
+                                        </View>
+                                        <FontAwesome name="chevron-right" size={16} color="#ccc" />
                                     </TouchableOpacity>
                                 )}
                                 keyExtractor={(item) => item.id}
                             />
                         </View>
                     )}
+                    <View style={{ height: 40 }} />
                 </ScrollView>
             </View>
 
+            {/* Bottom Sheet Modal (Interactive Detail) */}
             {showBottomSheet && (
                 <View style={styles.overlay}>
                     <TouchableWithoutFeedback onPress={closeBottomSheet}>
@@ -415,151 +448,163 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    map: { width: '100%', height: '40%' },
+    container: { flex: 1, backgroundColor: COLOR_BACKGROUND },
+    map: { width: '100%', height: '45%' }, // Tingkatkan tinggi peta agar lebih dominan
 
+    // --- FAB (Floating Action Button) ---
     fab: {
         position: 'absolute',
-        width: 56,
-        height: 56,
+        width: 50,
+        height: 50,
         alignItems: 'center',
         justifyContent: 'center',
         right: 20,
-        bottom: 240,
-        backgroundColor: '#0275d8',
-        borderRadius: 30,
+        bottom: 240, // Posisikan lebih tinggi dari list/tab
+        backgroundColor: COLOR_PRIMARY,
+        borderRadius: 25, // Membuat lingkaran sempurna
         elevation: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
         zIndex: 10,
     },
 
+    // --- Tabs ---
     tabContainer: {
         height: 60,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: COLOR_CARD_BACKGROUND,
         borderBottomWidth: 1,
-        borderBottomColor: '#e9ecef',
+        borderTopWidth: 1,
+        borderBottomColor: COLOR_BORDER,
+        borderTopColor: COLOR_BORDER,
+        elevation: 2, // Beri sedikit elevasi
     },
-    tabContent: { paddingHorizontal: 10, paddingVertical: 8 },
+    tabContent: { paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' },
     tab: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
         marginHorizontal: 4,
         borderRadius: 20,
-        backgroundColor: '#e9ecef',
+        backgroundColor: COLOR_BACKGROUND,
+        borderWidth: 1,
+        borderColor: COLOR_BORDER,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    tabActive: { backgroundColor: '#0275d8' },
-    tabText: { fontSize: 13, fontWeight: '500', color: '#495057' },
+    tabActive: { backgroundColor: COLOR_PRIMARY, borderColor: COLOR_PRIMARY },
+    tabText: { fontSize: 14, fontWeight: '600', color: COLOR_SECONDARY },
     tabTextActive: { color: '#fff' },
 
-    listContainer: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 10 },
+    // --- List Container & Star Section ---
+    listContainer: { flex: 1, backgroundColor: COLOR_BACKGROUND, paddingHorizontal: 15, paddingTop: 5 },
 
-    starSection: { marginVertical: 12 },
+    starSection: { marginVertical: 8 },
     starHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 10,
-        backgroundColor: '#f1f3f5',
-        borderRadius: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 15,
+        backgroundColor: '#e9f2fb', // Latar belakang yang lebih cerah
+        borderRadius: 10,
         marginBottom: 8,
+        borderLeftWidth: 5,
+        borderLeftColor: COLOR_PRIMARY,
     },
-    starHeaderText: { fontSize: 16, fontWeight: 'bold', color: '#212529', flex: 1 },
-    starBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-    starCount: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+    starHeaderText: { fontSize: 16, fontWeight: '700', color: '#212529', flex: 1 },
+    starBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 15 },
+    starCount: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
 
+    // --- Hotel Card ---
     hotelCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
+        padding: 15,
         marginVertical: 6,
-        backgroundColor: '#fff',
+        backgroundColor: COLOR_CARD_BACKGROUND,
         borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e9ecef',
-        elevation: 2,
+        borderWidth: 0, // Hapus border
+        elevation: 3,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowRadius: 3,
     },
+    hotelCardIcon: { marginRight: 15, alignItems: 'center', justifyContent: 'center' },
     hotelCardContent: { flex: 1, marginRight: 10 },
-    hotelName: { fontSize: 14, fontWeight: 'bold', color: '#212529', flex: 1 },
-    hotelAddress: { fontSize: 12, color: '#6c757d', marginBottom: 6 },
-
-    hotelFooter: { flexDirection: 'row', alignItems: 'center' },
-    hotelCoords: { fontSize: 11, color: '#999', marginLeft: 6 },
+    hotelName: { fontSize: 15, fontWeight: '700', color: '#212529', flex: 1 },
+    hotelAddress: { fontSize: 12, color: COLOR_SECONDARY, marginBottom: 4, flexDirection: 'row', alignItems: 'center' },
 
     emptyText: {
         fontSize: 14,
-        color: '#999',
+        color: COLOR_SECONDARY,
         textAlign: 'center',
         paddingVertical: 20,
+        backgroundColor: COLOR_CARD_BACKGROUND,
+        borderRadius: 8,
     },
 
+    // --- Overlay & Bottom Sheet ---
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Overlay yang sedikit lebih gelap
         zIndex: 999,
     },
     overlayTouch: { flex: 1 },
 
-    /* --- BOTTOM SHEET FIXED --- */
     bottomSheet: {
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
         height: SCREEN_HEIGHT,
-        maxHeight: SCREEN_HEIGHT * 0.92,  // agar tidak terpotong; cap at ~92% of screen
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        elevation: 5,
+        maxHeight: SCREEN_HEIGHT * 0.5,
+        backgroundColor: COLOR_CARD_BACKGROUND,
+        borderTopLeftRadius: 25, // Radius yang lebih besar
+        borderTopRightRadius: 25,
+        elevation: 10,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        shadowOffset: { width: 0, height: -5 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
         paddingTop: 10,
     },
 
     handle: {
-        width: 40,
-        height: 5,
+        width: 50, // Handle yang lebih besar
+        height: 4,
         backgroundColor: '#ccc',
-        borderRadius: 2.5,
+        borderRadius: 2,
         alignSelf: 'center',
-        marginTop: 8,
-        marginBottom: 10,
+        marginTop: 5,
+        marginBottom: 15,
     },
 
     bottomSheetInner: {
         paddingHorizontal: 20,
-        paddingBottom: 20, // ruang supaya konten tidak ketutup
-        // don't let inner content push the sheet taller than maxHeight; we use a content container for scrolling
-        maxHeight: SCREEN_HEIGHT * 0.78,
     },
 
     bottomSheetContentContainer: {
-        paddingBottom: 40,
+        paddingBottom: 60, // Padding bawah yang cukup
     },
 
+    // --- Detail Content (Bottom Sheet) ---
     headerSection: {
         marginBottom: 16,
         paddingBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#e9ecef',
+        borderBottomColor: COLOR_BORDER,
     },
 
-    bottomSheetTitle: { fontSize: 20, marginBottom: 6, fontWeight: '600' },
-    hotelNameBig: { fontSize: 20, fontWeight: 'bold', color: '#212529' },
+    bottomSheetTitle: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
+    hotelNameBig: { fontSize: 28, fontWeight: 'bold', color: '#212529' },
 
     actionButtons: {
         flexDirection: 'row',
         marginBottom: 16,
         justifyContent: 'space-between',
+        marginHorizontal: -6, // Menyesuaikan margin horizontal tombol
     },
 
     actionBtn: {
@@ -567,66 +612,50 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 10,
-        backgroundColor: '#0275d8',
-        borderRadius: 8,
+        paddingVertical: 12,
+        borderRadius: 10,
         marginHorizontal: 6,
     },
     actionBtnText: {
         color: '#fff',
-        fontWeight: '600',
-        fontSize: 12,
-        marginLeft: 6,
+        fontWeight: '700',
+        fontSize: 14,
+        marginLeft: 8,
     },
 
-    ratingSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        backgroundColor: '#fff3cd',
-        borderRadius: 8,
-        borderLeftWidth: 4,
-        borderLeftColor: '#ffc107',
-    },
-    ratingText: {
-        fontSize: 13,
-        color: '#856404',
-        marginLeft: 10,
-        fontWeight: '500',
-    },
-
+    // Info Sections (Address, Coords, Website)
     infoSection: {
         flexDirection: 'row',
-        marginBottom: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        backgroundColor: '#f1f3f5',
-        borderRadius: 8,
+        marginBottom: 12,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        backgroundColor: COLOR_BACKGROUND,
+        borderRadius: 10,
+        borderLeftWidth: 4,
         alignItems: 'flex-start',
     },
     infoLabel: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 'bold',
         color: '#212529',
         marginBottom: 4,
     },
     infoText: {
-        fontSize: 13,
+        fontSize: 14,
         color: '#495057',
         flex: 1,
         lineHeight: 20,
     },
 
+    // Description Section
     descriptionSection: {
         marginBottom: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        backgroundColor: '#e7f3ff',
-        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 15,
+        backgroundColor: '#e7f3ff', // Background khusus untuk deskripsi
+        borderRadius: 10,
         borderLeftWidth: 4,
-        borderLeftColor: '#0275d8',
+        borderLeftColor: COLOR_PRIMARY,
     },
     descriptionText: {
         fontSize: 14,
@@ -634,22 +663,24 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
 
+    // Section Detail (Reviews, etc)
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 15,
+        fontWeight: '700',
         color: '#212529',
-        marginBottom: 8,
     },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
 
     sectionContainer: {
-        marginBottom: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        backgroundColor: '#f8f9fa',
-        borderRadius: 8,
+        marginBottom: 12,
+        paddingHorizontal: 15,
+        paddingVertical: 15,
+        backgroundColor: COLOR_CARD_BACKGROUND,
+        borderRadius: 10,
         borderLeftWidth: 3,
-        borderLeftColor: '#0275d8',
+        borderLeftColor: '#ffc107', // Warna sekunder untuk section
+        borderWidth: 1,
+        borderColor: COLOR_BORDER,
     },
 
     sectionContent: {
@@ -661,7 +692,7 @@ const styles = StyleSheet.create({
 
     sectionSource: {
         fontSize: 12,
-        color: '#6c757d',
+        color: COLOR_SECONDARY,
         marginTop: 8,
         fontStyle: 'italic',
         paddingTop: 8,
@@ -669,4 +700,3 @@ const styles = StyleSheet.create({
         borderTopColor: '#dee2e6',
     },
 });
-

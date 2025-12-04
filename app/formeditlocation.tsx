@@ -8,13 +8,12 @@ import { db } from './firebase';
 
 type Section = { title: string; content: string; source: string | null };
 
-const STAR_OPTIONS = [
-    { label: '⭐', value: 1 },
-    { label: '⭐⭐', value: 2 },
-    { label: '⭐⭐⭐', value: 3 },
-    { label: '⭐⭐⭐⭐', value: 4 },
-    { label: '⭐⭐⭐⭐⭐', value: 5 },
-];
+// DIDEFINISIKAN ULANG UNTUK MENGGUNAKAN SATU KARAKTER BINTANG (★) UNTUK KONTROL UI/UX YANG LEBIH BAIK
+const STAR_OPTIONS = [1, 2, 3, 4, 5];
+// Star icon Unicode: Bintang Penuh (★) untuk kontrol visual, atau Bintang Emoji (⭐) yang sulit diwarnai.
+// Kita akan menggunakan Bintang Penuh (★) untuk kontrol warna.
+const STAR_ICON_FULL = '★'; // Karakter Unicode Bintang Penuh
+const STAR_ICON_EMPTY = '☆'; // Karakter Unicode Bintang Kosong (opsional)
 
 const FormEditLocation = () => {
     const params = useLocalSearchParams();
@@ -30,7 +29,7 @@ const FormEditLocation = () => {
     const [deskripsi, setDeskripsi] = React.useState<string>('');
     const [website, setWebsite] = React.useState<string>('');
     const [sections, setSections] = React.useState<Section[]>([]);
-    
+
     // State UI/UX
     const [fetching, setFetching] = React.useState<boolean>(true); // Mulai fetching
     const [isDirty, setIsDirty] = React.useState<boolean>(false);
@@ -45,6 +44,11 @@ const FormEditLocation = () => {
         setter(value);
         setIsDirty(true);
         isDirtyRef.current = true;
+    };
+
+    // **Fungsi khusus untuk menangani perubahan bintang**
+    const handleStarChange = (value: number) => {
+        handleChange(setBintang, String(value));
     };
 
     const getCoordinates = async () => {
@@ -72,11 +76,11 @@ const FormEditLocation = () => {
     // Fetch data awal dan real-time listener
     React.useEffect(() => {
         let mounted = true;
-        
+
         // Fungsi untuk mengambil data dan mengupdate state lokal
         const updateLocalState = (p: any) => {
             if (!mounted) return;
-            
+
             setName(p.name || '');
             let coords = '';
             if (typeof p.coordinates === 'string') coords = p.coordinates;
@@ -86,7 +90,7 @@ const FormEditLocation = () => {
             setCoordinates(coords || '');
             setAccuration(p.accuration || p.accuracy || '');
             // Pastikan bintang adalah string numerik
-            setBintang(p.bintang !== undefined && p.bintang !== null ? String(p.bintang) : '3'); 
+            setBintang(p.bintang !== undefined && p.bintang !== null ? String(p.bintang) : '3');
             setAlamat(p.alamat || '');
             setDeskripsi(p.deskripsi || '');
             setWebsite(p.website || '');
@@ -121,7 +125,7 @@ const FormEditLocation = () => {
             if (!snap || !snap.exists()) return;
             if (!isDirtyRef.current) {
                 updateLocalState(snap.val());
-            } 
+            }
         }, (err) => console.error('onValue error', err));
 
         return () => { mounted = false; unsubscribe(); };
@@ -145,6 +149,26 @@ const FormEditLocation = () => {
         setSections(sections.filter((_, i) => i !== index));
         setIsDirty(true);
         isDirtyRef.current = true;
+    };
+
+    const saveSections = async () => {
+        if (!id) {
+            Alert.alert('Error', 'ID tidak tersedia');
+            return;
+        }
+        setLoading(true);
+        try {
+            const pointRef = ref(db, `points/${id}`);
+            await update(pointRef, { sections: sections.length > 0 ? sections : null });
+            Alert.alert('Sukses', 'Sections berhasil disimpan');
+            setIsDirty(false);
+            isDirtyRef.current = false;
+        } catch (e) {
+            console.error('saveSections error', e);
+            Alert.alert('Error', 'Gagal menyimpan sections');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleUpdate = async () => {
@@ -198,12 +222,15 @@ const FormEditLocation = () => {
         );
     }
 
+    // ====================================================================================================
+    // BAGIAN INI TELAH DISESUAIKAN UNTUK UI/UX BINTANG YANG LEBIH BAIK
+    // ====================================================================================================
     return (
         <SafeAreaProvider style={styles.safeArea}>
             <SafeAreaView style={styles.container}>
                 <Stack.Screen options={{ title: 'Edit Hotel' }} />
                 <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-                    
+
                     {/* Header Judul Hotel */}
                     <View style={styles.headerTitleCard}>
                         <Text style={styles.headerHotelName} numberOfLines={1}>
@@ -216,13 +243,13 @@ const FormEditLocation = () => {
                             </Text>
                         </View>
                     </View>
-                    
+
                     {/* ---------------------------------- */}
                     {/* GROUP: Informasi Dasar & Lokasi */}
                     {/* ---------------------------------- */}
                     <View style={styles.card}>
                         <Text style={styles.sectionHeader}>Informasi Dasar & Lokasi 📍</Text>
-                        
+
                         <Text style={styles.label}>Nama Hotel *</Text>
                         <TextInput
                             style={styles.input}
@@ -240,11 +267,11 @@ const FormEditLocation = () => {
                             onChangeText={(v) => handleChange(setCoordinates, v)}
                             editable={!loading}
                         />
-                         <Text style={styles.inputHint}>Akurasi: {accuration || '?'}</Text>
-                        
-                        <TouchableOpacity 
-                            style={[styles.btnLocation, loading && { opacity: 0.6 }]} 
-                            onPress={getCoordinates} 
+                        <Text style={styles.inputHint}>Akurasi: {accuration || '?'}</Text>
+
+                        <TouchableOpacity
+                            style={[styles.btnLocation, loading && { opacity: 0.6 }]}
+                            onPress={getCoordinates}
                             disabled={loading}
                             activeOpacity={0.8}
                         >
@@ -258,25 +285,29 @@ const FormEditLocation = () => {
                     <View style={styles.card}>
                         <Text style={styles.sectionHeader}>Detail Hotel & Deskripsi 🏨</Text>
 
-                        <Text style={styles.label}>Bintang *</Text>
+                        <Text style={styles.label}>Rating *</Text>
                         <View style={styles.starSelectorContainer}>
-                            {STAR_OPTIONS.map((option) => (
+                            {STAR_OPTIONS.map((value) => (
                                 <TouchableOpacity
-                                    key={option.value}
+                                    key={value}
                                     style={styles.starItem}
-                                    onPress={() => handleChange(setBintang, String(option.value))}
+                                    onPress={() => handleStarChange(value)}
                                     disabled={loading}
+                                    activeOpacity={0.8}
                                 >
                                     <Text style={[
-                                        styles.starIcon, 
-                                        parseInt(bintang) >= option.value ? styles.starIconActive : styles.starIconInactive
+                                        styles.starIcon,
+                                        parseInt(bintang) >= value ? styles.starIconActive : styles.starIconInactive
                                     ]}>
-                                        {option.label}
+                                        {STAR_ICON_FULL}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
+                            <Text style={styles.currentRatingText}>
+                                ({bintang} Bintang)
+                            </Text>
                         </View>
-                        
+
                         <Text style={styles.label}>Alamat</Text>
                         <TextInput
                             style={[styles.input, styles.inputMultiline]}
@@ -314,19 +345,28 @@ const FormEditLocation = () => {
                     {/* ---------------------------------- */}
                     <View style={styles.card}>
                         <Text style={styles.sectionHeader}>Sections Tambahan 📑</Text>
-                        
+
                         {/* Existing Sections */}
                         {sections.map((section, index) => (
                             <View key={index} style={styles.existingSectionBox}>
                                 <View style={styles.sectionHeaderRow}>
-                                    <Text style={styles.sectionBoxTitle}>Section #{index + 1}: {section.title}</Text>
-                                    <TouchableOpacity 
-                                        onPress={() => removeSection(index)} 
-                                        disabled={loading}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text style={styles.removeBtn}>❌ Hapus</Text>
-                                    </TouchableOpacity>
+                                    <Text style={styles.sectionBoxTitle} numberOfLines={1}>Section #{index + 1}: {section.title}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <TouchableOpacity
+                                            onPress={() => removeSection(index)}
+                                            disabled={loading}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text style={styles.removeBtn}>❌</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={saveSections}
+                                            disabled={loading}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text style={styles.saveSectionBtn}>💾</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
 
                                 <TextInput
@@ -395,16 +435,16 @@ const FormEditLocation = () => {
                             textAlignVertical='top'
                         />
 
-                        <TouchableOpacity 
-                            style={[styles.btnAddSection, (!newSectionTitle.trim() || !newSectionContent.trim() || loading) && { opacity: 0.6 }]} 
-                            onPress={addSection} 
+                        <TouchableOpacity
+                            style={[styles.btnAddSection, (!newSectionTitle.trim() || !newSectionContent.trim() || loading) && { opacity: 0.6 }]}
+                            onPress={addSection}
                             disabled={loading || !newSectionTitle.trim() || !newSectionContent.trim()}
                             activeOpacity={0.8}
                         >
                             <Text style={styles.btnText}>➕ Tambah Section</Text>
                         </TouchableOpacity>
                     </View>
-                    
+
                     {/* ---------------------------------- */}
                     {/* Action Buttons */}
                     {/* ---------------------------------- */}
@@ -494,31 +534,31 @@ const styles = StyleSheet.create({
         shadowRadius: 3,
         elevation: 2,
     },
-    sectionHeader: { 
-        fontSize: 16, 
-        fontWeight: '800', 
-        marginBottom: 12, 
-        color: '#334155', 
+    sectionHeader: {
+        fontSize: 16,
+        fontWeight: '800',
+        marginBottom: 12,
+        color: '#334155',
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
         paddingBottom: 8,
     },
 
     // --- Input & Label ---
-    label: { 
-        fontSize: 13, 
-        fontWeight: '700', 
-        marginTop: 10, 
-        marginBottom: 6, 
-        color: '#334155' 
+    label: {
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 10,
+        marginBottom: 6,
+        color: '#334155'
     },
-    input: { 
-        borderWidth: 1, 
-        borderColor: '#cbd5e1', 
-        borderRadius: 8, 
-        paddingHorizontal: 15, 
-        paddingVertical: 12, 
-        fontSize: 14, 
+    input: {
+        borderWidth: 1,
+        borderColor: '#cbd5e1',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        fontSize: 14,
         backgroundColor: '#f8fafc',
         color: '#0f172a',
         marginBottom: 10,
@@ -533,33 +573,43 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
 
-    // --- Star Selector ---
+    // --- Star Selector (UI/UX yang Disesuaikan) ---
     starSelectorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 15,
-        gap: 5,
     },
     starItem: {
         paddingVertical: 5,
-        paddingHorizontal: 5,
+        paddingHorizontal: 3, // Mengurangi padding agar bintang lebih rapat
     },
     starIcon: {
-        fontSize: 28,
-        // Dibiarkan tanpa perubahan karena emoji bintang akan terlihat berbeda
+        fontSize: 32, // Ukuran bintang lebih besar
+        color: '#fcd34d', // Warna kuning emas
     },
     starIconActive: {
         opacity: 1,
+        // Optional: tambahkan shadow atau efek lain untuk bintang aktif
+        textShadowColor: 'rgba(252, 211, 77, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
     },
     starIconInactive: {
-        opacity: 0.3,
+        opacity: 0.3, // Bintang tidak aktif lebih redup
+        color: '#e2e8f0', // Warna abu-abu terang untuk bintang yang belum dipilih
+    },
+    currentRatingText: {
+        marginLeft: 10,
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#475569',
     },
 
     // --- Section Management ---
-    existingSectionBox: { 
-        padding: 10, 
-        backgroundColor: '#f1f5f9', 
-        borderRadius: 8, 
+    existingSectionBox: {
+        padding: 10,
+        backgroundColor: '#f1f5f9',
+        borderRadius: 8,
         marginBottom: 15,
         borderLeftWidth: 3,
         borderLeftColor: '#f59e0b',
@@ -570,41 +620,46 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 5,
     },
-    sectionBoxTitle: { 
-        fontWeight: 'bold', 
-        color: '#334155', 
-        fontSize: 13 
+    sectionBoxTitle: {
+        fontWeight: 'bold',
+        color: '#334155',
+        fontSize: 13
     },
     sectionInput: {
         marginHorizontal: 0,
         marginBottom: 8,
         paddingVertical: 8,
     },
-    removeBtn: { 
-        color: '#dc2626', 
-        fontWeight: '600', 
-        fontSize: 12 
+    removeBtn: {
+        color: '#dc2626',
+        fontWeight: '600',
+        fontSize: 14
     },
-    
+    saveSectionBtn: {
+        color: '#0369a1',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+
     // --- Buttons ---
     btnLocation: {
         backgroundColor: '#3b82f6', // Biru yang lebih dalam
-        paddingVertical: 12, 
-        borderRadius: 8, 
+        paddingVertical: 12,
+        borderRadius: 8,
         alignItems: 'center',
         marginTop: 10,
         marginBottom: 10,
     },
     btnLocationText: {
-        color: '#fff', 
-        fontWeight: '700', 
+        color: '#fff',
+        fontWeight: '700',
         fontSize: 14,
     },
-    
-    btnPrimary: { 
+
+    btnPrimary: {
         backgroundColor: '#0ea5e9',
-        paddingVertical: 15, 
-        borderRadius: 12, 
+        paddingVertical: 15,
+        borderRadius: 12,
         alignItems: 'center',
         marginHorizontal: 10,
         marginTop: 20,
@@ -616,20 +671,36 @@ const styles = StyleSheet.create({
     },
     btnCancel: {
         backgroundColor: 'transparent',
-        paddingVertical: 15, 
+        paddingVertical: 15,
         borderRadius: 12,
         marginHorizontal: 10,
         marginTop: 10,
         borderWidth: 1,
         borderColor: '#cbd5e1',
     },
-    btnText: { 
-        color: '#fff', 
-        fontWeight: '800', 
-        fontSize: 16 
+    btnText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 16
+    },
+    btnCancel: {
+        backgroundColor: '#dc2626', // Warna Merah Solid
+        paddingVertical: 15,
+        borderRadius: 12,
+        marginHorizontal: 10,
+        marginTop: 10,
+        // Properti ini yang membuat teks (child) di tengah horizontal
+        alignItems: 'center',
+        // Menghapus borderWidth/borderColor
+    },
+    btnText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 16
     },
     btnCancelText: {
-        color: '#64748b',
+        // Warna teks diubah menjadi putih
+        color: '#fff',
         fontWeight: '700',
         fontSize: 16,
     },
@@ -639,6 +710,13 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
         marginTop: 15,
+    },
+    btnSaveAllSections: {
+        backgroundColor: '#0ea5e9',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 10,
     }
 });
 
